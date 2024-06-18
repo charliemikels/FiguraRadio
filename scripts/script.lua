@@ -3,6 +3,7 @@
 local max_distance_from_radios = 16
 
 local all_radios = {}
+local brodcasts = {}
 local function pos_is_a_radio(pos)
     local pcall_status, function_return = pcall(
         function (pos)
@@ -71,7 +72,7 @@ local function skull_renderer_loop(_, block)
 end
 
 local mysound = sounds["Pink-Loop"]
-local target_volume = 0.8
+local target_volume = 0.0
 
 local function tick_loop()
     mysound:setPos(player:getPos())
@@ -82,10 +83,26 @@ local function entity_init()
     print("Entity init → "..client:getSystemTime())
     mysound
         :setPos(player:getPos())
-        :setVolume(0)
-        -- :loop(true)
+        :setPitch(1.25)
+        :setVolume(0.1)
+        :loop(true)
         :play()
     events.TICK:register(tick_loop)
+
+
+    -- local tmp_ogg_as_string = file:readString("Radio/Local Forecast-16000-2x.ogg", "base64")
+    -- sounds:newSound("tmp_ogg_from_string", tmp_ogg_as_string)
+
+    local tmp_ogg_read_stream = file:openReadStream("Radio/Local Forecast-4000-Highpass.ogg")
+    local tmp_ogg_read_stream_dump = {}
+    local available = tmp_ogg_read_stream:available()
+    for i=1,available do
+        table.insert(tmp_ogg_read_stream_dump, tmp_ogg_read_stream:read())
+    end
+    print(available)
+    print(#tmp_ogg_read_stream_dump)
+    sounds:newSound("tmp_ogg_from_string", tmp_ogg_read_stream_dump)
+    sounds["tmp_ogg_from_string"]:setPitch(1):volume(2):setPos(player:getPos()):loop(false):play()
 end
 
 events.SKULL_RENDER:register(skull_renderer_loop, "skull_renderer_loop")
