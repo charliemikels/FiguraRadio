@@ -8,35 +8,31 @@ local function pos_is_a_radio(pos)
     return (pcall_status and function_return or false)
 end
 
-local world_remove_radio_loop_index = 1
+local world_remove_radio_loop_next_key = nil
 local function world_remove_radios_loop()
-    current_radio = all_radios[world_remove_radio_loop_index]
+    local current_key = world_remove_radio_loop_next_key
+    world_remove_radio_loop_next_key = next(all_radios, current_key)
     
-    if not pos_is_a_radio(current_radio.pos) then 
-        print("lost radio at" .. tostring(current_radio.pos))
-        table.remove(all_radios, world_remove_radio_loop_index)
+    if current_key then 
+        local current_radio = all_radios[current_key]
+        if not pos_is_a_radio(current_radio.pos) then 
+            print("lost radio at" .. tostring(current_radio.pos))
+            all_radios[current_key] = nil
+        end
     end
-
-    world_remove_radio_loop_index = world_remove_radio_loop_index % #all_radios +1
 end
 events.WORLD_TICK:register(world_remove_radios_loop, "unregister_removed_radios")
 
 
-
-local function pos_is_known_radio(pos) 
-    -- TODO: This for loop is very taxing when lots of radios are placed, 
-    -- especialy since we're making this check on every radio, every frame
-    for _, radio in ipairs(all_radios) do 
-        if radio.id == tostring(pos) then return true end
-    end
+local function pos_is_known_radio(pos)
+    if all_radios[tostring(pos)] then return true end
     return false
 end
 
 local function add_radio(pos)
-    table.insert(all_radios, #all_radios+1, {
-        id = tostring(pos), 
+    all_radios[tostring(pos)] = {
         pos = pos
-    })
+    }
 end
 
 local function skull_renderer_loop(_, block)
