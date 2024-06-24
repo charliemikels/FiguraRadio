@@ -2,8 +2,17 @@
 
 local max_distance_from_radios = 16
 
+local static_hiss = sounds["Pink-Loop"]
+local static_hiss_volume = 0.01
+local static_hiss_punch_volume = 0.2
+
 local all_radios = {}
+local nearest_radio = nil
+
 local brodcasts = {}
+
+
+-- Radio blocks management
 local function pos_is_a_radio(pos)
     local pcall_status, function_return = pcall(
         function (pos)
@@ -34,7 +43,6 @@ local function radio_is_in_range(pos)
     return false
 end
 
-
 local function pos_is_known_radio(pos)
     if all_radios[tostring(pos)] then return true end
     return false
@@ -46,6 +54,13 @@ local function add_radio(pos)
     }
 end
 
+-- sound management
+local function reposition_sounds(pos)
+    static_hiss:setPos(pos)
+end
+
+
+-- event loops
 local function skull_renderer_loop(_, block)
     if not block then return end
     if not pos_is_known_radio(block:getPos()) and radio_is_in_range(block:getPos()) then 
@@ -56,35 +71,47 @@ local function skull_renderer_loop(_, block)
     -- printTable(all_radios)
 end
 
-local mysound = sounds["Pink-Loop"]
-local target_volume = 0.0
-
-local function tick_loop()
-    mysound:setPos(player:getPos())
-    mysound:setVolume( math.lerp(mysound:getVolume(), target_volume, 0.1  ) )
-
-
-
-end
-
-
+-- local function tick_loop()
+--     static_hiss:setPos(player:getPos())
+-- end
 
 local world_remove_radio_loop_next_key = nil
-local function world_remove_radios_loop_step()
+local function world_radio_checkup_loop()
+    -- this function checks 1 radio per tick. so with many radios, it may be slow to detect changes. 
     local current_key = world_remove_radio_loop_next_key
     world_remove_radio_loop_next_key = next(all_radios, current_key)
     
-    if current_key then 
-        local current_radio = all_radios[current_key]
-        if not (pos_is_a_radio(current_radio.pos) and radio_is_in_range(current_radio.pos)) then 
-            print("lost radio at" .. tostring(current_radio.pos))
-            all_radios[current_key] = nil
+    -- when looping back to the top of the list, this will be nil. 
+    -- this will be resolved by `next()` on next run, so just return early. 
+    if not current_key then return end
+    local current_radio = all_radios[current_key]
+    
+    -- remove distant radios and radios that have been broken
+    if not (pos_is_a_radio(current_radio.pos) and radio_is_in_range(current_radio.pos)) then 
+        print("lost radio at" .. tostring(current_radio.pos))
+        all_radios[current_key] = nil
+    end
+
+    -- test nearest radio, if viewer is arround. 
+    if client:getViewer() then 
+        if      not nearest_radio or not all_radios[nearest_radio]
+            or    distancesquared(client:getViewer():getPos(), all_radios[nearest_radio].pos) 
+                > distancesquared(client:getViewer():getPos(), current_radio.pos) 
+        then
+            nearest_radio = current_key
+            -- print("new nearest radio")
+            particles:newParticle("smoke", current_radio.pos + vec(0.5,0.5,0.5), vec(0, 0, 0))
+            reposition_sounds(current_radio.pos + vec(0.5,0.5,0.5))
         end
     end
 end
 
 local function world_tick_loop()
-    world_remove_radios_loop_step()
+    -- check next radio and clean up radio list if any are missing. 
+    world_radio_checkup_loop()
+
+    -- animate static hiss volume
+    static_hiss:setVolume( math.lerp(static_hiss:getVolume(), static_hiss_volume, 0.1  ) )
 
     -- get players interacting with radios
     for k, loopPlayer in pairs(world.getPlayers()) do
@@ -92,6 +119,7 @@ local function world_tick_loop()
             local punchedBlock, _, _ = loopPlayer:getTargetedBlock()
             if pos_is_known_radio(punchedBlock:getPos()) then
                 print("That's a radio")
+                static_hiss:setVolume(static_hiss_punch_volume)
             end
         end
     end
@@ -99,15 +127,17 @@ end
 events.WORLD_TICK:register(world_tick_loop, "main_world_loop")
 
 
+
+
 local function entity_init()
     print("Entity init → "..client:getSystemTime())
-    mysound
+    static_hiss
         :setPos(player:getPos())
         :setPitch(1.25)
-        :setVolume(0.1)
+        :setVolume(static_hiss_punch_volume)
         :loop(true)
         :play()
-    events.TICK:register(tick_loop)
+    -- events.TICK:register(tick_loop)
 
 
     -- local tmp_ogg_as_string = file:readString("Radio/Local Forecast-16000-2x.ogg", "base64")
