@@ -34,21 +34,6 @@ local function radio_is_in_range(pos)
     return false
 end
 
-local world_remove_radio_loop_next_key = nil
-local function world_remove_radios_loop()
-    local current_key = world_remove_radio_loop_next_key
-    world_remove_radio_loop_next_key = next(all_radios, current_key)
-    
-    if current_key then 
-        local current_radio = all_radios[current_key]
-        if not (pos_is_a_radio(current_radio.pos) and radio_is_in_range(current_radio.pos)) then 
-            print("lost radio at" .. tostring(current_radio.pos))
-            all_radios[current_key] = nil
-        end
-    end
-end
-events.WORLD_TICK:register(world_remove_radios_loop, "unregister_removed_radios")
-
 
 local function pos_is_known_radio(pos)
     if all_radios[tostring(pos)] then return true end
@@ -77,7 +62,42 @@ local target_volume = 0.0
 local function tick_loop()
     mysound:setPos(player:getPos())
     mysound:setVolume( math.lerp(mysound:getVolume(), target_volume, 0.1  ) )
+
+
+
 end
+
+
+
+local world_remove_radio_loop_next_key = nil
+local function world_remove_radios_loop_step()
+    local current_key = world_remove_radio_loop_next_key
+    world_remove_radio_loop_next_key = next(all_radios, current_key)
+    
+    if current_key then 
+        local current_radio = all_radios[current_key]
+        if not (pos_is_a_radio(current_radio.pos) and radio_is_in_range(current_radio.pos)) then 
+            print("lost radio at" .. tostring(current_radio.pos))
+            all_radios[current_key] = nil
+        end
+    end
+end
+
+local function world_tick_loop()
+    world_remove_radios_loop_step()
+
+    -- get players interacting with radios
+    for k, loopPlayer in pairs(world.getPlayers()) do
+        if (loopPlayer:getSwingTime() == 1) then -- this player punched this tick
+            local punchedBlock, _, _ = loopPlayer:getTargetedBlock()
+            if pos_is_known_radio(punchedBlock:getPos()) then
+                print("That's a radio")
+            end
+        end
+    end
+end
+events.WORLD_TICK:register(world_tick_loop, "main_world_loop")
+
 
 local function entity_init()
     print("Entity init → "..client:getSystemTime())
