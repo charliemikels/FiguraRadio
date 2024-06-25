@@ -5,7 +5,7 @@ local static_hiss_volume = 0.03
 local static_hiss_volume_during_brodcats = 0.005
 local static_hiss_punch_volume = 0.1
 
-local static_hiss = sounds["Pink-Loop"]:setPitch(1.25):setVolume(static_hiss_volume):loop(true)
+local static_hiss = sounds["Pink-Loop"]:setPitch(1.25):setVolume(0):loop(true)
 
 local brodcast_target_volume = 2
 
