@@ -1,3 +1,6 @@
+
+local function entity_init() print("Entity init → "..client:getSystemTime()) end
+
 local radio_model = models["radio"]["Skull"]
 
 -- functional sounds
@@ -29,8 +32,6 @@ local current_brodcast_sound = nil
 local current_brodcast_done_at = nil
 
 local fac_to_end_of_brodcast = 1
-
--- local recent_brodcasts = {}
 
 for _, sound_name in pairs(sounds:getCustomSounds()) do
     if string.match(sound_name, "Default_Brodcasts.") then
@@ -347,11 +348,6 @@ local function world_tick_loop()
             end
         end
     end
-end
-
-
-local function entity_init()
-    print("Entity init → "..client:getSystemTime())
 end
 
 events.SKULL_RENDER:register(skull_renderer_loop, "skull_renderer_loop")
