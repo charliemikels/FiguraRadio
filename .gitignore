@@ -1,4 +1,5 @@
 .vscode/
 .vscode/*
 *.aup3
-Default_Brodcasts/*.ogg
+Default_Brodcasts/*
+!Default_Brodcasts/*.sh
