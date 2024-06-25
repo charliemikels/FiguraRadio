@@ -1,5 +1,4 @@
 .vscode/
 .vscode/*
 *.aup3
-Default_Brodcasts/*
-!Default_Brodcasts/.gitkeep
+Default_Brodcasts/*.ogg
