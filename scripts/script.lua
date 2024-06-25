@@ -25,6 +25,7 @@ local brodcasts = {}
 local current_brodcast_key = nil
 local current_brodcast_sound = nil
 local current_brodcast_done_at = nil
+-- local recent_brodcasts = {}
 
 for _, sound_name in pairs(sounds:getCustomSounds()) do
     if string.match(sound_name, "Default_Brodcasts.") then
@@ -68,8 +69,7 @@ local function can_play_brodcast()
 end
 
 local function play_a_brodcast()
-    print(#brodcasts)
-    print(math.random(#brodcasts))
+    -- TODO: avoid repeating a recent brodcast. (namely, never play the most recently played brodcast, and avoid playing the 3 most recent.)
     local selected_brodcast = brodcasts[math.random(#brodcasts)]
 
     selected_brodcast.sound:setPos( all_radios[nearest_radio_key].pos + radio_sound_pos_offset )
@@ -164,7 +164,7 @@ local function radio_react_to_punch(pos)
         if punches_to_next_brodcast < 1 then
             -- play next brodcast
             punches_to_next_brodcast = math.random(5, 15)
-            print("Playing brodcast")
+            -- print("Playing brodcast")
             play_a_brodcast()
             sound_radio_tuned_click_1:setPos(sound_pos):stop():play()
             sound_radio_tuned_click_2:setPos(sound_pos):stop():play()
