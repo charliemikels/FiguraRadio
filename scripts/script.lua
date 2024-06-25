@@ -18,18 +18,66 @@ local all_radios = {}
 local radio_count = 0
 local nearest_radio_key = nil
 
+local radio_sound_pos_offset = vec(0.5,0.5,0.5)
+
 -- brodcasts
 local brodcasts = {}
-local current_brodcast = nil
+local current_brodcast_key = nil
+local current_brodcast_sound = nil
+local current_brodcast_done_at = nil
 
+for _, sound_name in pairs(sounds:getCustomSounds()) do
+    if string.match(sound_name, "Default_Brodcasts.") then
+        
+        local _, _, seconds = string.find(sound_name, "-(%d+)s$")
+
+        if seconds then 
+            local new_brodcast = {
+                sound = sounds[sound_name]:setSubtitle("Radio Brodcast #"..tostring(#brodcasts +1)),
+                is_local = true,
+                durration = seconds*1000
+            }
+            table.insert(brodcasts, new_brodcast)
+        end
+    end
+end
 
 -- sound management
-local function reposition_sounds(pos)
-    static_hiss:setPos(pos)
+local function reposition_sounds(radio_pos)
+    local sound_pos = radio_pos + radio_sound_pos_offset
+    static_hiss:setPos(sound_pos)
+    if current_brodcast_sound then current_brodcast_sound:setPos(sound_pos) end
 end
 
 local function can_play_brodcast()
-    return true
+    if not current_brodcast_sound then return true end
+
+    if current_brodcast_done_at < client:getSystemTime() then
+        -- brodcast is done, but it was still non-nill. reset, and tell puncher it's ok to play next brodcast
+
+        current_brodcast_sound:stop()
+
+        current_brodcast_key = nil
+        current_brodcast_sound = nil
+        current_brodcast_done_at = nil
+
+        return true
+    end
+
+    return false
+end
+
+local function play_a_brodcast()
+    print(#brodcasts)
+    print(math.random(#brodcasts))
+    local selected_brodcast = brodcasts[math.random(#brodcasts)]
+
+    selected_brodcast.sound:setPos( all_radios[nearest_radio_key].pos + radio_sound_pos_offset )
+    current_brodcast_key = selected_brodcast
+    current_brodcast_sound = selected_brodcast.sound
+    current_brodcast_done_at = selected_brodcast.durration + client:getSystemTime()
+
+    current_brodcast_sound:play()
 end
 
 
@@ -104,32 +152,26 @@ local function radio_react_to_punch(pos)
                 > distancesquared(client:getViewer():getPos(), current_radio.pos) 
         then
             nearest_radio_key = current_key
-            reposition_sounds(current_radio.pos + vec(0.5,0.5,0.5))
+            reposition_sounds(current_radio.pos + radio_sound_pos_offset)
         end
     end
 
-    local sound_pos = pos+vec(0.5,0.5,0.5)
+    local sound_pos = pos+radio_sound_pos_offset
+    static_hiss:setVolume(static_hiss_punch_volume)
+
     if can_play_brodcast() then
         punches_to_next_brodcast = punches_to_next_brodcast -1
         if punches_to_next_brodcast < 1 then
             -- play next brodcast
             punches_to_next_brodcast = math.random(5, 15)
             print("Playing brodcast")
+            play_a_brodcast()
             sound_radio_tuned_click_1:setPos(sound_pos):stop():play()
             sound_radio_tuned_click_2:setPos(sound_pos):stop():play()
         else
-            static_hiss:setVolume(static_hiss_punch_volume)
             sound_radio_tune_attempt:setPitch(math.random()*2+2):setPos(sound_pos):stop():play()
         end
     end
-
-    -- someone punched a radio, try to play a brodcast. 
-    -- if #punchedRadios >= 1 then
-    --     for i, radioPos in ipairs(punchedRadios) do
-    --         print(radioPos)
-            
-    --     end
-    -- end
 end
 
 
@@ -201,8 +243,8 @@ local function world_radio_checkup_loop()
         then
             nearest_radio_key = current_key
             -- print("new nearest radio")
-            particles:newParticle("smoke", current_radio.pos + vec(0.5,0.5,0.5), vec(0, 0, 0))
-            reposition_sounds(current_radio.pos + vec(0.5,0.5,0.5))
+            particles:newParticle("smoke", current_radio.pos + radio_sound_pos_offset, vec(0, 0, 0))
+            reposition_sounds(current_radio.pos + radio_sound_pos_offset)
         end
     end
 end
