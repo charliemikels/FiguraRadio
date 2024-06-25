@@ -156,7 +156,7 @@ local function radio_react_to_punch(pos)
                 > distancesquared(client:getViewer():getPos(), current_radio.pos) 
         then
             nearest_radio_key = current_key
-            reposition_sounds(current_radio.pos + radio_sound_pos_offset)
+            reposition_sounds(current_radio.pos)
         end
     end
 
@@ -248,7 +248,7 @@ local function world_radio_checkup_loop()
             nearest_radio_key = current_key
             -- print("new nearest radio")
             particles:newParticle("smoke", current_radio.pos + radio_sound_pos_offset, vec(0, 0, 0))
-            reposition_sounds(current_radio.pos + radio_sound_pos_offset)
+            reposition_sounds(current_radio.pos)
         end
     end
 end
