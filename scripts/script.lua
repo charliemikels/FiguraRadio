@@ -102,7 +102,6 @@ local function get_next_brodcast()
 end
 
 local function play_a_brodcast()
-    -- TODO: avoid repeating a recent brodcast. (namely, never play the most recently played brodcast, and avoid playing the 3 most recent.)
     local _, selected_brodcast = get_next_brodcast()
 
     selected_brodcast.sound:setVolume(0):setPos( all_radios[nearest_radio_key].pos + radio_sound_pos_offset )
