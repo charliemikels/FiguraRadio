@@ -10,7 +10,7 @@ local static_hiss_punch_volume = 0.15
 
 local static_hiss = sounds["Pink-Loop"]:setPitch(1.25):setVolume(0):loop(true)
 
-local brodcast_target_volume = 0.8
+local brodcast_target_volume = 1
 
 local sound_radio_tuned_click_1 = sounds["block.note_block.hat"]:setPitch(1):setSubtitle("Radio Tuned")
 local sound_radio_tuned_click_2 = sounds["block.note_block.cow_bell"]:setPitch(2.5):setVolume(0.25):setSubtitle("Radio Tuned")
@@ -374,18 +374,75 @@ events.WORLD_TICK:register(wait_for_max_permission_then_init_world_loop, "wait_f
 events.SKULL_RENDER:register(render_request_permission_sign_loop, "render_request_permission_sign_loop")
 
 
+-- ----------------------------------------------------------------------------------------------------------------- --
 
 
 -- Pings
--- TODO: pings
 local max_packet_size = 750
 local max_packet_rate = 1500
--- local max_packet_rate = 150
+-- local max_packet_rate = 150  -- DEV
 local last_packet_sent = client:getSystemTime()
 
-local function new_brodcast_segment(station_id, packet_number, total_packets, data)
+local incomming_brodcasts = {}
+local function ping_brodcast_data_to_client(brodcast_id, packet_number, total_packets_count, durration_in_s, data)
+    if not incomming_brodcasts[brodcast_id] then 
+        incomming_brodcasts[brodcast_id] = {}
+        incomming_brodcasts[brodcast_id].total_packets_count = total_packets_count
+        incomming_brodcasts[brodcast_id].packet_count = 0
+        incomming_brodcasts[brodcast_id].durration_in_s = durration_in_s
+        incomming_brodcasts[brodcast_id].packets = {}
+        incomming_brodcasts[brodcast_id].done = false
+    end
 
+    if incomming_brodcasts[brodcast_id].done then return end 
+
+    if not incomming_brodcasts[brodcast_id].packets[packet_number] then
+        -- first time seeing this packet. 
+        incomming_brodcasts[brodcast_id].packets[packet_number] = data
+        incomming_brodcasts[brodcast_id].packet_count = incomming_brodcasts[brodcast_id].packet_count +1
+    end
+
+    if incomming_brodcasts[brodcast_id].packet_count == incomming_brodcasts[brodcast_id].total_packets_count then
+        -- we have received all packets for this brodcast. 
+        incomming_brodcasts[brodcast_id].done = true
+
+        print("Brodcast #"..brodcast_id.." has been received")
+        
+        local full_data = {}
+
+        for packet_index = 1, incomming_brodcasts[brodcast_id].total_packets_count do
+            for _, data in ipairs(incomming_brodcasts[brodcast_id].packets[packet_index]) do
+               table.insert(full_data, data)
+            end
+        end
+
+        local brodcast_name_string = "remote_brodcast#"..tostring(brodcast_id).."-"..tostring(durration_in_s).."s"
+
+        sounds:newSound(brodcast_name_string, full_data)
+
+        local new_brodcast = {
+            sound = sounds[brodcast_name_string]:setSubtitle("Radio Brodcast #"..tostring(#brodcasts +1)),
+            is_local = false,
+            durration = durration_in_s*1000
+        }
+        table.insert(
+            brodcasts, 
+            math.random((last_brodcast_index and last_brodcast_index or 1), #brodcasts+1),
+            new_brodcast
+        )
+
+        incomming_brodcasts[brodcast_id].packets = nil
+        if not received_brodcast_from_host and nearest_radio_key then 
+            print("received first remote brodcast")
+            -- TODO: make radio react to successfuly host → client brodcasts
+        end
+        received_brodcast_from_host = true
+    end
 end
+
+-- function pings.ping_brodcast_data_to_client(brodcast_id, packet_number, total_packets_count, durration_in_s, data)
+--     ping_brodcast_data_to_client(brodcast_id, packet_number, total_packets_count, durration_in_s, data)
+-- end
 
 
 -- Host only
@@ -452,13 +509,13 @@ if host:isHost() then
                 -- end of list. rerun to get top of list. 
                 current_sending_brodcast_index = next(host_brodcasts, nil) 
             end
-            print("Switching to next brodcast.")
+            -- print("Switching to next brodcast.")
             return get_next_packet_to_send()
         end
 
         host_brodcasts[current_sending_brodcast_index].last_packet_index = packet_index
 
-        return current_sending_brodcast_index, packet_index, #host_brodcasts[current_sending_brodcast_index].data_packets, packet
+        return current_sending_brodcast_index, packet_index, #host_brodcasts[current_sending_brodcast_index].data_packets, host_brodcasts[current_sending_brodcast_index].durration, packet
     end
 
     local function send_data_to_clients_loop()
@@ -466,8 +523,10 @@ if host:isHost() then
         if client:getSystemTime() > last_packet_sent + max_packet_rate then
             last_packet_sent = client:getSystemTime()
 
-            local brodcast_index, packet_index, packet_total, packet_data = get_next_packet_to_send()
-            -- host:setTitle("Hello World")
+            local brodcast_index, packet_index, packet_total, brodcast_durration, packet_data = get_next_packet_to_send()
+            ping_brodcast_data_to_client(brodcast_index, packet_index, packet_total, brodcast_durration, packet_data)
+
+
             if pos_is_a_radio(player:getTargetedBlock():getPos()) then 
                 host:actionbar("Brodcast #"..brodcast_index.." - Sending packet "..packet_index.." of "..packet_total)
             end
@@ -477,21 +536,3 @@ if host:isHost() then
 
 
 end
-
-
-
-
--- local function tmp_read_file_from_data_dir(path)
---     path = "Radio/Local Forecast-4000-Highpass.ogg"
-
---     local tmp_ogg_read_stream = file:openReadStream(path)
---     local tmp_ogg_read_stream_dump = {}
---     local available = tmp_ogg_read_stream:available()
---     for i=1,available do
---         table.insert(tmp_ogg_read_stream_dump, tmp_ogg_read_stream:read())
---     end
---     print(available)
---     print(#tmp_ogg_read_stream_dump)
---     sounds:newSound("tmp_ogg_from_string", tmp_ogg_read_stream_dump)
---     sounds["tmp_ogg_from_string"]:setPitch(1):volume(2):setPos(player:getPos()):loop(false):play()
--- end
