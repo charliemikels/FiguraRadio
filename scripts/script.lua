@@ -209,11 +209,22 @@ local function skull_renderer_loop(_, block)
     end
 
     -- animate punch squish effect
-    local squash = (2+(current_radio.squish_scale*-1))
+    local squish = current_radio.squish_scale
+    current_radio.squish_scale = math.lerp(squish, 1, 0.2)
+    
+    local bounce = (
+        current_brodcast_key 
+        and math.lerp(
+            (math.abs(math.sin(client:getSystemTime()/500)))/16 +1, 
+            1, 
+            fac_to_end_of_brodcast
+        ) 
+        or 1
+    )
+    local squash = (2+(squish*-1))
 
-    radio_model:setScale(squash ,current_radio.squish_scale, squash)
-    current_radio.squish_scale = math.lerp(current_radio.squish_scale, 1, 0.2)
-    -- print(radio_model)
+    radio_model:setScale(squash ,bounce* squish, squash)
+
 end
 
 
@@ -284,8 +295,6 @@ local function world_tick_loop()
                     fac_to_end_of_brodcast  -- forces brodcast to 0 at the end
                 ) 
             )
-
-            print(fac_to_end_of_brodcast)
 
             static_hiss:setVolume( 
                 math.lerp(static_hiss:getVolume(), 
