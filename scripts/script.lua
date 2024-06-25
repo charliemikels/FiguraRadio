@@ -1,5 +1,5 @@
 
-local function entity_init() print("Entity init → "..client:getSystemTime()) end
+events.ENTITY_INIT:register(function() print("Entity init → "..client:getSystemTime()) end)
 
 local radio_model = models["radio"]["Skull"]
 
@@ -16,7 +16,6 @@ local sound_radio_tuned_click_1 = sounds["block.note_block.hat"]:setPitch(1):set
 local sound_radio_tuned_click_2 = sounds["block.note_block.cow_bell"]:setPitch(2.5):setVolume(0.25):setSubtitle("Radio Tuned")
 local sound_radio_tune_attempt  = sounds["block.note_block.snare"]:setPitch(3):setSubtitle("Radio Clicks")
 
-
 -- radio management
 local max_distance_from_radios = 16
 local all_radios = {}
@@ -30,8 +29,9 @@ local brodcasts = {}
 local current_brodcast_key = nil
 local current_brodcast_sound = nil
 local current_brodcast_done_at = nil
+local fac_to_end_of_brodcast = 1    -- internal. Used to animate out of brodcast. 
 
-local fac_to_end_of_brodcast = 1
+local station_brodcasts = {}
 
 for _, sound_name in pairs(sounds:getCustomSounds()) do
     if string.match(sound_name, "Default_Brodcasts.") then
@@ -52,6 +52,7 @@ for _, sound_name in pairs(sounds:getCustomSounds()) do
         end
     end
 end
+
 
 -- sound management
 local function reposition_sounds(radio_pos)
@@ -168,7 +169,6 @@ local function unknow_radio(pos)
     all_radios[tostring(pos)] = nil
     radio_count = radio_count -1
 end
-
 
 
 -- interaction management
@@ -350,25 +350,28 @@ local function world_tick_loop()
     end
 end
 
-events.SKULL_RENDER:register(skull_renderer_loop, "skull_renderer_loop")
-events.ENTITY_INIT:register(entity_init)
+-- Skull initilization
+local function wait_for_max_permission_then_init_world_loop() 
+    if avatar:getPermissionLevel() == "MAX" then 
+        -- we're at max perms, start initilization!
+        events.WORLD_TICK:remove("wait_for_max_permission_then_init_world_loop")
 
-if avatar:getPermissionLevel() == "MAX" then
-    -- perms are already good to go. 
-    events.WORLD_TICK:register(world_tick_loop, "main_world_loop")
-else
-    local request_max_perms_text = radio_model:newText("Hi mom!"):setPos(0, 32, 0)
-
-    events.WORLD_TICK:register(
-        function() 
-            if avatar:getPermissionLevel() == "MAX" then 
-              events.WORLD_TICK:remove("initial_permission_check")
-              events.WORLD_TICK:register(world_tick_loop, "main_world_loop")
-            end
-        end, "initial_permission_check"
-    )
+        events.WORLD_TICK:register(world_tick_loop, "main_world_loop")
+        events.SKULL_RENDER:register(skull_renderer_loop, "skull_renderer_loop")
+    end
 end
 
+local function render_request_permission_sign_loop(_, block)
+    radio_model["PermissionRequestSign"]:setVisible(false)
+    if avatar:getPermissionLevel() == "MAX" then 
+        -- events.SKULL_RENDER:remove("render_request_permission_sign_loop")
+    elseif block and client.getViewer():getTargetedBlock():getPos() == block:getPos() then 
+        radio_model["PermissionRequestSign"]:setVisible(true)
+    end
+end
+
+events.WORLD_TICK:register(wait_for_max_permission_then_init_world_loop, "wait_for_max_permission_then_init_world_loop")
+events.SKULL_RENDER:register(render_request_permission_sign_loop, "render_request_permission_sign_loop")
 
 
 
