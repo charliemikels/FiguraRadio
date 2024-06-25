@@ -1,11 +1,13 @@
 local radio_model = models["radio"]["Skull"]
 
 -- functional sounds
-local static_hiss_volume = 0.015
--- local static_hiss_volume_during_brodcats = 0.015
+local static_hiss_volume = 0.03
+local static_hiss_volume_during_brodcats = 0.005
 local static_hiss_punch_volume = 0.1
 
 local static_hiss = sounds["Pink-Loop"]:setPitch(1.25):setVolume(static_hiss_volume):loop(true)
+
+local brodcast_target_volume = 2
 
 local sound_radio_tuned_click_1 = sounds["block.note_block.hat"]:setPitch(1):setSubtitle("Radio Tuned")
 local sound_radio_tuned_click_2 = sounds["block.note_block.cow_bell"]:setPitch(2.5):setVolume(0.25):setSubtitle("Radio Tuned")
@@ -50,18 +52,20 @@ local function reposition_sounds(radio_pos)
     if current_brodcast_sound then current_brodcast_sound:setPos(sound_pos) end
 end
 
+local function kill_brodcast()
+    current_brodcast_sound:setVolume(0):stop()
+    current_brodcast_key = nil
+    current_brodcast_sound = nil
+    current_brodcast_done_at = nil
+end
+
 local function can_play_brodcast()
     if not current_brodcast_sound then return true end
 
     if current_brodcast_done_at < client:getSystemTime() then
         -- brodcast is done, but it was still non-nill. reset, and tell puncher it's ok to play next brodcast
 
-        current_brodcast_sound:stop()
-
-        current_brodcast_key = nil
-        current_brodcast_sound = nil
-        current_brodcast_done_at = nil
-
+        kill_brodcast()
         return true
     end
 
@@ -72,7 +76,7 @@ local function play_a_brodcast()
     -- TODO: avoid repeating a recent brodcast. (namely, never play the most recently played brodcast, and avoid playing the 3 most recent.)
     local selected_brodcast = brodcasts[math.random(#brodcasts)]
 
-    selected_brodcast.sound:setPos( all_radios[nearest_radio_key].pos + radio_sound_pos_offset )
+    selected_brodcast.sound:setVolume(0):setPos( all_radios[nearest_radio_key].pos + radio_sound_pos_offset )
     current_brodcast_key = selected_brodcast
     current_brodcast_sound = selected_brodcast.sound
     current_brodcast_done_at = selected_brodcast.durration + client:getSystemTime()
@@ -253,8 +257,43 @@ local function world_tick_loop()
     -- check next radio and clean up radio list if any are missing. 
     world_radio_checkup_loop()
 
-    -- animate static hiss volume
-    static_hiss:setVolume( math.lerp(static_hiss:getVolume(), static_hiss_volume, 0.1  ) )
+    -- animate sound volumes
+    if current_brodcast_sound then
+        if current_brodcast_done_at < client:getSystemTime() 
+        then 
+            kill_brodcast() 
+        else
+            local remaining_durration = current_brodcast_done_at - client:getSystemTime()
+
+            local fadeout_time = 2 *1000
+            local fac_to_end_of_brodcast = math.min((remaining_durration), fadeout_time) /fadeout_time
+
+            current_brodcast_sound:setVolume( 
+                math.lerp(
+                    0, 
+                    math.lerp(
+                        current_brodcast_sound:getVolume(), 
+                        brodcast_target_volume, 
+                        0.1 -- lets sound ramp up
+                        ), 
+                    fac_to_end_of_brodcast  -- forces brodcast to 0 at the end
+                ) 
+            )
+
+            static_hiss:setVolume( 
+                math.lerp(static_hiss:getVolume(), 
+                    math.lerp( 
+                        static_hiss_volume, 
+                        static_hiss_volume_during_brodcats,
+                        fac_to_end_of_brodcast  -- inverted, because it's ok if the noise slides arround a bit more. It's animated on every tick anywhays.
+                    ),
+                    0.2
+                )
+            )
+        end
+    else
+        static_hiss:setVolume( math.lerp(static_hiss:getVolume(), static_hiss_volume, 0.1  ) )
+    end
 
     -- get players interacting with radios
     local punchedRadios = {}
