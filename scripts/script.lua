@@ -145,8 +145,8 @@ local function skull_renderer_loop(_, block)
 
     -- test if new radio
     if not pos_is_known_radio(block:getPos()) and radio_is_in_range(block:getPos()) then 
-        print("Found radio at "..tostring(block:getPos()))
-        print(block)
+        -- print("Found radio at "..tostring(block:getPos()))
+        -- print(block)
         add_radio(block:getPos())
     end
 
@@ -189,7 +189,7 @@ local function world_radio_checkup_loop()
     
     -- remove distant radios and radios that have been broken
     if not (pos_is_a_radio(current_radio.pos) and radio_is_in_range(current_radio.pos)) then 
-        print("lost radio at" .. tostring(current_radio.pos))
+        -- print("lost radio at" .. tostring(current_radio.pos))
         unknow_radio(current_key)
     end
 
@@ -220,7 +220,7 @@ local function world_tick_loop()
         if (loopPlayer:getSwingTime() == 1) then -- this player punched this tick
             local punchedBlock, _, _ = loopPlayer:getTargetedBlock()
             if pos_is_known_radio(punchedBlock:getPos()) then
-                print("That's a radio")
+                -- print("That's a radio")
                 radio_react_to_punch(punchedBlock:getPos())
                 table.insert(punchedRadios, punchedBlock:getPos())
             end
