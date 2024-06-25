@@ -23,15 +23,15 @@ local radio_count = 0
 local nearest_radio_key = nil
 
 local radio_sound_pos_offset = vec(0.5,0.5,0.5)
+local fac_to_end_of_brodcast = 1    -- internal. Used to animate out of brodcast. 
 
 -- brodcasts
 local brodcasts = {}
 local current_brodcast_key = nil
 local current_brodcast_sound = nil
 local current_brodcast_done_at = nil
-local fac_to_end_of_brodcast = 1    -- internal. Used to animate out of brodcast. 
 
-local station_brodcasts = {}
+local received_brodcast_from_host = false
 
 for _, sound_name in pairs(sounds:getCustomSounds()) do
     if string.match(sound_name, "Default_Brodcasts.") then
@@ -73,7 +73,7 @@ local function can_play_brodcast()
     if not current_brodcast_sound then return true end
 
     if current_brodcast_done_at < client:getSystemTime() then
-        -- brodcast is done, but it was still non-nill. reset, and tell puncher it's ok to play next brodcast
+        -- brodcast is done, but it was still non-nil. reset, and tell puncher it's ok to play next brodcast
 
         kill_brodcast()
         return true
@@ -376,7 +376,107 @@ events.SKULL_RENDER:register(render_request_permission_sign_loop, "render_reques
 
 
 
+-- Pings
+-- TODO: pings
+local max_packet_size = 750
+local max_packet_rate = 1500
+-- local max_packet_rate = 150
+local last_packet_sent = client:getSystemTime()
 
+local function new_brodcast_segment(station_id, packet_number, total_packets, data)
+
+end
+
+
+-- Host only
+local host_brodcast_files_root = "Additional_Radio_Brodcasts/"
+if host:isHost() then 
+
+    if avatar:getPermissionLevel() ~= "MAX" then 
+        print("Set yourself to max permissions plz. :)")
+        return
+    end
+
+    local host_brodcasts = {}
+
+    -- find adtional brodcasts
+    if not file:allowed() then
+        return
+    elseif not file:exists(host_brodcast_files_root) then 
+        file:mkdir(host_brodcast_files_root) 
+        print("Created folder for aditional radio brodcasts.")
+    else
+        for _, filename in pairs(file:list(host_brodcast_files_root)) do
+            local _, _, seconds = string.find(filename, "-(%d+)s%.ogg$")
+            if seconds then 
+                table.insert(host_brodcasts, math.random(1, #host_brodcasts+1), {
+                    file_path = host_brodcast_files_root..filename,
+                    durration = seconds,
+                    -- data = {},
+                    data_packets = {}
+                })
+            end 
+        end
+    end
+
+    -- collect data from files. 
+    for _, brodcast in ipairs(host_brodcasts) do 
+        local brodcast_file_read_stream = file:openReadStream(brodcast.file_path)
+        local available = brodcast_file_read_stream:available()
+        for i = 1, available do
+            -- table.insert(brodcast.data, data)
+            packet_index = math.floor((i - (i %max_packet_size ))/max_packet_size)+1
+            if not brodcast.data_packets[packet_index] then brodcast.data_packets[packet_index] = {} end
+            table.insert(brodcast.data_packets[packet_index], brodcast_file_read_stream:read())
+        end
+        brodcast_file_read_stream:close()
+    end
+
+    -- file transfer
+    -- "One goofy developer keeps sending packets without stopping! The backend hates him!"
+
+    local current_sending_brodcast_index = next(host_brodcasts)
+    local function get_next_packet_to_send()
+        -- see if current brodcast still has packets. send the next one of those. 
+        -- if not, get the next brodcast and send it's first packet. 
+        -- if on last brodcast, shuffle list and send the new first brodcast. 
+
+        -- only ask if there are brodcasts to send. 
+        local packet_index, packet = next(host_brodcasts[current_sending_brodcast_index].data_packets, host_brodcasts[current_sending_brodcast_index].last_packet_index)
+
+        if not packet_index then 
+            -- we passed last packet. Reset and loop back arround. 
+            host_brodcasts[current_sending_brodcast_index].last_packet_index = nil
+            current_sending_brodcast_index = next(host_brodcasts, current_sending_brodcast_index)
+            if not current_sending_brodcast_index then 
+                -- end of list. rerun to get top of list. 
+                current_sending_brodcast_index = next(host_brodcasts, nil) 
+            end
+            print("Switching to next brodcast.")
+            return get_next_packet_to_send()
+        end
+
+        host_brodcasts[current_sending_brodcast_index].last_packet_index = packet_index
+
+        return current_sending_brodcast_index, packet_index, #host_brodcasts[current_sending_brodcast_index].data_packets, packet
+    end
+
+    local function send_data_to_clients_loop()
+        -- print(get_next_packet_to_send())
+        if client:getSystemTime() > last_packet_sent + max_packet_rate then
+            last_packet_sent = client:getSystemTime()
+
+            local brodcast_index, packet_index, packet_total, packet_data = get_next_packet_to_send()
+            -- host:setTitle("Hello World")
+            if pos_is_a_radio(player:getTargetedBlock():getPos()) then 
+                host:actionbar("Brodcast #"..brodcast_index.." - Sending packet "..packet_index.." of "..packet_total)
+            end
+        end
+    end
+    events.TICK:register(send_data_to_clients_loop)
+
+
+end
 
 
 
