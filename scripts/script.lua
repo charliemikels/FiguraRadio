@@ -358,8 +358,6 @@ end
 events.SKULL_RENDER:register(skull_renderer_loop, "skull_renderer_loop")
 events.ENTITY_INIT:register(entity_init)
 
-print(avatar:getPermissionLevel())
-
 if avatar:getPermissionLevel() == "MAX" then
     -- perms are already good to go. 
     events.WORLD_TICK:register(world_tick_loop, "main_world_loop")
