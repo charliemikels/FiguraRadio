@@ -1,13 +1,13 @@
 local radio_model = models["radio"]["Skull"]
 
 -- functional sounds
-local static_hiss_volume = 0.03
-local static_hiss_volume_during_brodcats = 0.005
-local static_hiss_punch_volume = 0.1
+local static_hiss_volume = 0.1
+local static_hiss_volume_during_brodcats = 0.05
+local static_hiss_punch_volume = 0.15
 
 local static_hiss = sounds["Pink-Loop"]:setPitch(1.25):setVolume(0):loop(true)
 
-local brodcast_target_volume = 2
+local brodcast_target_volume = 0.8
 
 local sound_radio_tuned_click_1 = sounds["block.note_block.hat"]:setPitch(1):setSubtitle("Radio Tuned")
 local sound_radio_tuned_click_2 = sounds["block.note_block.cow_bell"]:setPitch(2.5):setVolume(0.25):setSubtitle("Radio Tuned")
@@ -43,7 +43,11 @@ for _, sound_name in pairs(sounds:getCustomSounds()) do
                 is_local = true,
                 durration = seconds*1000
             }
-            table.insert(brodcasts, new_brodcast)
+            table.insert(
+                brodcasts, 
+                math.random(1, #brodcasts+1), 
+                new_brodcast
+            )
         end
     end
 end
@@ -76,9 +80,30 @@ local function can_play_brodcast()
     return false
 end
 
+local last_brodcast_index = nil
+local function get_next_brodcast() 
+    local next_brodcast_index, next_brodcast = next(brodcasts, last_brodcast_index)
+    
+    if not next_brodcast_index then 
+        -- last brodcast was the last brodcast in the list. reshuffle and start again.
+        -- this process reduces the chance of playing the same brodcast 2+ times in a row. 
+
+        local shuffled_brodcasts = {}
+        for _, v in pairs(brodcasts) do
+            table.insert(shuffled_brodcasts, math.random(1, #shuffled_brodcasts+1), v)
+        end
+
+        brodcasts = shuffled_brodcasts
+
+        next_brodcast_index, next_brodcast = next(brodcasts, nil)
+    end
+    last_brodcast_index = next_brodcast_index
+    return next_brodcast_index, next_brodcast
+end
+
 local function play_a_brodcast()
     -- TODO: avoid repeating a recent brodcast. (namely, never play the most recently played brodcast, and avoid playing the 3 most recent.)
-    local selected_brodcast = brodcasts[math.random(#brodcasts)]
+    local _, selected_brodcast = get_next_brodcast()
 
     selected_brodcast.sound:setVolume(0):setPos( all_radios[nearest_radio_key].pos + radio_sound_pos_offset )
     current_brodcast_key = selected_brodcast
@@ -324,7 +349,6 @@ local function world_tick_loop()
         end
     end
 end
-events.WORLD_TICK:register(world_tick_loop, "main_world_loop")
 
 
 local function entity_init()
@@ -333,6 +357,31 @@ end
 
 events.SKULL_RENDER:register(skull_renderer_loop, "skull_renderer_loop")
 events.ENTITY_INIT:register(entity_init)
+
+print(avatar:getPermissionLevel())
+
+if avatar:getPermissionLevel() == "MAX" then
+    -- perms are already good to go. 
+    events.WORLD_TICK:register(world_tick_loop, "main_world_loop")
+else
+    local request_max_perms_text = radio_model:newText("Hi mom!"):setPos(0, 32, 0)
+
+    events.WORLD_TICK:register(
+        function() 
+            if avatar:getPermissionLevel() == "MAX" then 
+              events.WORLD_TICK:remove("initial_permission_check")
+              events.WORLD_TICK:register(world_tick_loop, "main_world_loop")
+            end
+        end, "initial_permission_check"
+    )
+end
+
+
+
+
+
+
+
 
 
 
