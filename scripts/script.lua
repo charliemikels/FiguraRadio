@@ -27,6 +27,9 @@ local brodcasts = {}
 local current_brodcast_key = nil
 local current_brodcast_sound = nil
 local current_brodcast_done_at = nil
+
+local fac_to_end_of_brodcast = 1
+
 -- local recent_brodcasts = {}
 
 for _, sound_name in pairs(sounds:getCustomSounds()) do
@@ -57,6 +60,7 @@ local function kill_brodcast()
     current_brodcast_key = nil
     current_brodcast_sound = nil
     current_brodcast_done_at = nil
+    fac_to_end_of_brodcast = 1
 end
 
 local function can_play_brodcast()
@@ -82,6 +86,7 @@ local function play_a_brodcast()
     current_brodcast_done_at = selected_brodcast.durration + client:getSystemTime()
 
     current_brodcast_sound:play()
+    fac_to_end_of_brodcast = 0
 end
 
 
@@ -266,25 +271,27 @@ local function world_tick_loop()
             local remaining_durration = current_brodcast_done_at - client:getSystemTime()
 
             local fadeout_time = 2 *1000
-            local fac_to_end_of_brodcast = math.min((remaining_durration), fadeout_time) /fadeout_time
+            fac_to_end_of_brodcast = (math.min((remaining_durration), fadeout_time) /fadeout_time) *-1 +1
 
             current_brodcast_sound:setVolume( 
                 math.lerp(
-                    0, 
                     math.lerp(
                         current_brodcast_sound:getVolume(), 
                         brodcast_target_volume, 
                         0.1 -- lets sound ramp up
-                        ), 
+                        ),
+                    0,  
                     fac_to_end_of_brodcast  -- forces brodcast to 0 at the end
                 ) 
             )
 
+            print(fac_to_end_of_brodcast)
+
             static_hiss:setVolume( 
                 math.lerp(static_hiss:getVolume(), 
                     math.lerp( 
-                        static_hiss_volume, 
                         static_hiss_volume_during_brodcats,
+                        static_hiss_volume, 
                         fac_to_end_of_brodcast  -- inverted, because it's ok if the noise slides arround a bit more. It's animated on every tick anywhays.
                     ),
                     0.2
