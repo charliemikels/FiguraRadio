@@ -1,18 +1,37 @@
--- Auto generated script file --
-
 local radio_model = models["radio"]["Skull"]
 
+-- functional sounds
+local static_hiss_volume = 0.015
+-- local static_hiss_volume_during_brodcats = 0.015
+local static_hiss_punch_volume = 0.1
+
+local static_hiss = sounds["Pink-Loop"]:setPitch(1.25):setVolume(static_hiss_volume):loop(true)
+
+local sound_radio_tuned_click_1 = sounds["block.note_block.hat"]:setPitch(1):setSubtitle("Radio Tuned")
+local sound_radio_tuned_click_2 = sounds["block.note_block.cow_bell"]:setPitch(2.5):setVolume(0.25):setSubtitle("Radio Tuned")
+local sound_radio_tune_attempt  = sounds["block.note_block.snare"]:setPitch(3):setSubtitle("Radio Clicks")
+
+
+-- radio management
 local max_distance_from_radios = 16
-
-local static_hiss = sounds["Pink-Loop"]
-local static_hiss_volume = 0.01
-local static_hiss_punch_volume = 0.2
-
 local all_radios = {}
-local nearest_radio = nil
+local radio_count = 0
+local nearest_radio_key = nil
 
+-- brodcasts
 local brodcasts = {}
 local current_brodcast = nil
+
+
+-- sound management
+local function reposition_sounds(pos)
+    static_hiss:setPos(pos)
+end
+
+local function can_play_brodcast()
+    return true
+end
+
 
 -- Radio blocks management
 local function pos_is_a_radio(pos)
@@ -55,18 +74,62 @@ local function add_radio(pos)
         pos = pos,
         squish_scale = 1
     }
+    radio_count = radio_count +1
+    if nearest_radio_key == nil then
+        nearest_radio_key = tostring(pos)
+        reposition_sounds(pos)
+        static_hiss:play()
+    end
 end
 
--- sound management
-local function reposition_sounds(pos)
-    static_hiss:setPos(pos)
+local function unknow_radio(pos)
+    all_radios[tostring(pos)] = nil
+    radio_count = radio_count -1
 end
+
+
 
 -- interaction management
+local punches_to_next_brodcast = math.random(15)
 local function radio_react_to_punch(pos)
     local current_radio = all_radios[tostring(pos)]
+    
     current_radio.squish_scale = 0.2
-    static_hiss:setVolume(static_hiss_punch_volume)
+
+    particles:newParticle("smoke", current_radio.pos + vec(math.random()/2+0.25,0.5,math.random()/2+0.25), vec(0, 0.1, 0))
+
+    if client:getViewer() then 
+        if  not nearest_radio_key or not all_radios[nearest_radio_key]
+            or    distancesquared(client:getViewer():getPos(), all_radios[nearest_radio_key].pos) 
+                > distancesquared(client:getViewer():getPos(), current_radio.pos) 
+        then
+            nearest_radio_key = current_key
+            reposition_sounds(current_radio.pos + vec(0.5,0.5,0.5))
+        end
+    end
+
+    local sound_pos = pos+vec(0.5,0.5,0.5)
+    if can_play_brodcast() then
+        punches_to_next_brodcast = punches_to_next_brodcast -1
+        if punches_to_next_brodcast < 1 then
+            -- play next brodcast
+            punches_to_next_brodcast = math.random(5, 15)
+            print("Playing brodcast")
+            sound_radio_tuned_click_1:setPos(sound_pos):stop():play()
+            sound_radio_tuned_click_2:setPos(sound_pos):stop():play()
+        else
+            static_hiss:setVolume(static_hiss_punch_volume)
+            sound_radio_tune_attempt:setPitch(math.random()*2+2):setPos(sound_pos):stop():play()
+        end
+    end
+
+    -- someone punched a radio, try to play a brodcast. 
+    -- if #punchedRadios >= 1 then
+    --     for i, radioPos in ipairs(punchedRadios) do
+    --         print(radioPos)
+            
+    --     end
+    -- end
 end
 
 
@@ -113,22 +176,30 @@ local function world_radio_checkup_loop()
     
     -- when looping back to the top of the list, this will be nil. 
     -- this will be resolved by `next()` on next run, so just return early. 
-    if not current_key then return end
+    -- but this may be because the list is empty. if it is, make sure to reset sound positions. 
+    if not current_key then 
+        if radio_count == 0 then
+            nearest_radio_key = nil
+            reposition_sounds(vec(0, -255, 0))
+        end
+        
+        return 
+    end
     local current_radio = all_radios[current_key]
     
     -- remove distant radios and radios that have been broken
     if not (pos_is_a_radio(current_radio.pos) and radio_is_in_range(current_radio.pos)) then 
         print("lost radio at" .. tostring(current_radio.pos))
-        all_radios[current_key] = nil
+        unknow_radio(current_key)
     end
 
     -- test nearest radio, if viewer is arround. 
     if client:getViewer() then 
-        if  not nearest_radio or not all_radios[nearest_radio]
-            or    distancesquared(client:getViewer():getPos(), all_radios[nearest_radio].pos) 
+        if  not nearest_radio_key or not all_radios[nearest_radio_key]
+            or    distancesquared(client:getViewer():getPos(), all_radios[nearest_radio_key].pos) 
                 > distancesquared(client:getViewer():getPos(), current_radio.pos) 
         then
-            nearest_radio = current_key
+            nearest_radio_key = current_key
             -- print("new nearest radio")
             particles:newParticle("smoke", current_radio.pos + vec(0.5,0.5,0.5), vec(0, 0, 0))
             reposition_sounds(current_radio.pos + vec(0.5,0.5,0.5))
@@ -155,45 +226,30 @@ local function world_tick_loop()
             end
         end
     end
-
-    -- someone punched a radio, try to play a brodcast. 
-    -- if #punchedRadios >= 1 then
-    --     for i, radioPos in ipairs(punchedRadios) do
-    --         print(radioPos)
-            
-    --     end
-    -- end
 end
 events.WORLD_TICK:register(world_tick_loop, "main_world_loop")
 
 
-
-
 local function entity_init()
     print("Entity init → "..client:getSystemTime())
-    static_hiss
-        :setPos(player:getPos())
-        :setPitch(1.25)
-        :setVolume(static_hiss_punch_volume)
-        :loop(true)
-        :play()
-    -- events.TICK:register(tick_loop)
-
-
-    -- local tmp_ogg_as_string = file:readString("Radio/Local Forecast-16000-2x.ogg", "base64")
-    -- sounds:newSound("tmp_ogg_from_string", tmp_ogg_as_string)
-
-    local tmp_ogg_read_stream = file:openReadStream("Radio/Local Forecast-4000-Highpass.ogg")
-    local tmp_ogg_read_stream_dump = {}
-    local available = tmp_ogg_read_stream:available()
-    for i=1,available do
-        table.insert(tmp_ogg_read_stream_dump, tmp_ogg_read_stream:read())
-    end
-    print(available)
-    print(#tmp_ogg_read_stream_dump)
-    sounds:newSound("tmp_ogg_from_string", tmp_ogg_read_stream_dump)
-    sounds["tmp_ogg_from_string"]:setPitch(1):volume(2):setPos(player:getPos()):loop(false):play()
 end
 
 events.SKULL_RENDER:register(skull_renderer_loop, "skull_renderer_loop")
 events.ENTITY_INIT:register(entity_init)
+
+
+
+-- local function tmp_read_file_from_data_dir(path)
+--     path = "Radio/Local Forecast-4000-Highpass.ogg"
+
+--     local tmp_ogg_read_stream = file:openReadStream(path)
+--     local tmp_ogg_read_stream_dump = {}
+--     local available = tmp_ogg_read_stream:available()
+--     for i=1,available do
+--         table.insert(tmp_ogg_read_stream_dump, tmp_ogg_read_stream:read())
+--     end
+--     print(available)
+--     print(#tmp_ogg_read_stream_dump)
+--     sounds:newSound("tmp_ogg_from_string", tmp_ogg_read_stream_dump)
+--     sounds["tmp_ogg_from_string"]:setPitch(1):volume(2):setPos(player:getPos()):loop(false):play()
+-- end
