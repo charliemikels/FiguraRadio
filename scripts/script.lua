@@ -142,7 +142,7 @@ end
 
 local max_distance_from_radios_squared = max_distance_from_radios^2
 local function radio_is_in_range(pos)
-    if      client:getViewer():isLoaded() 
+    if      pcall(client.getViewer) and client:getViewer():isLoaded() 
         and distancesquared(client:getViewer():getPos(), pos) < max_distance_from_radios_squared 
     then
         return true
@@ -203,7 +203,7 @@ local function radio_react_to_punch(pos)
         current_radio.squish_scale = 0.8
     end
 
-    if client:getViewer() then 
+    if pcall(client.getViewer) and client:getViewer() then 
         if  not nearest_radio_key or not all_radios[nearest_radio_key]
             or    distancesquared(client:getViewer():getPos(), all_radios[nearest_radio_key].pos) 
                 > distancesquared(client:getViewer():getPos(), current_radio.pos) 
@@ -360,7 +360,7 @@ local function world_radio_checkup_loop()
     end
 
     -- test nearest radio, if viewer is arround. 
-    if client:getViewer() then 
+    if pcall(client.getViewer) then 
         if  not nearest_radio_key or not all_radios[nearest_radio_key]
             or    distancesquared(client:getViewer():getPos(), all_radios[nearest_radio_key].pos) 
                 > distancesquared(client:getViewer():getPos(), current_radio.pos) 
@@ -444,7 +444,7 @@ local function render_request_permission_sign_loop(_, block)
     radio_model["PermissionRequestSign"]:setVisible(false)
     if avatar:getPermissionLevel() == "MAX" then 
         -- events.SKULL_RENDER:remove("render_request_permission_sign_loop")
-    elseif block and client.getViewer():getTargetedBlock():getPos() == block:getPos() then 
+    elseif block and pcall(client.getViewer) and client.getViewer():getTargetedBlock():getPos() == block:getPos() then 
         radio_model["PermissionRequestSign"]:setVisible(true)
     end
 end
