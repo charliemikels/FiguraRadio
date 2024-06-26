@@ -204,11 +204,11 @@ local function radio_react_to_punch(pos)
     end
 
     if pcall(client.getViewer) and client:getViewer() then 
-        if  not nearest_radio_key or not all_radios[nearest_radio_key]
-            or    distancesquared(client:getViewer():getPos(), all_radios[nearest_radio_key].pos) 
-                > distancesquared(client:getViewer():getPos(), current_radio.pos) 
+        if  nearest_radio_key and all_radios[nearest_radio_key]
+            and (  distancesquared(client:getViewer():getPos(), all_radios[nearest_radio_key].pos)
+                > distancesquared(client:getViewer():getPos(), current_radio.pos) )
         then
-            nearest_radio_key = current_key
+            nearest_radio_key = tostring(current_radio.pos)
             reposition_sounds(current_radio.pos)
         end
     end
@@ -485,7 +485,7 @@ local function ping_brodcast_data_to_client(brodcast_id, packet_number, total_pa
         -- we have received all packets for this brodcast. 
         incomming_brodcasts[brodcast_id].done = true
 
-        print("Brodcast #"..brodcast_id.." has been received")
+        -- print("Brodcast #"..brodcast_id.." has been received")
         
         local full_data = {}
 
@@ -512,7 +512,7 @@ local function ping_brodcast_data_to_client(brodcast_id, packet_number, total_pa
 
         incomming_brodcasts[brodcast_id].packets = nil
         if not received_brodcast_from_host and nearest_radio_key then 
-            print("received first remote brodcast")
+            if not host:isHost() then print("Received a remote brodcast") end
             -- TODO: make radio react to successfuly host → client brodcasts
         end
         received_brodcast_from_host = true
@@ -618,6 +618,4 @@ if host:isHost() then
         end
     end
     events.TICK:register(send_data_to_clients_loop)
-
-
 end
