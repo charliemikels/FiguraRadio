@@ -379,8 +379,8 @@ events.SKULL_RENDER:register(render_request_permission_sign_loop, "render_reques
 
 -- Pings
 local max_packet_size = 750
-local max_packet_rate = 1500
--- local max_packet_rate = 150  -- DEV
+-- local max_packet_rate = 1500
+local max_packet_rate = 100  -- DEV
 local last_packet_sent = client:getSystemTime()
 
 local incomming_brodcasts = {}
@@ -450,7 +450,7 @@ local host_brodcast_files_root = "Additional_Radio_Brodcasts/"
 if host:isHost() then 
 
     if avatar:getPermissionLevel() ~= "MAX" then 
-        print("Set yourself to max permissions plz. :)")
+        print("Set yourself to max permissions and reload your avatar plz. :)")
         return
     end
 
@@ -474,6 +474,12 @@ if host:isHost() then
                 })
             end 
         end
+    end
+
+    if #host_brodcasts == 0 then 
+        -- no brodcasts? don't bother continuing. 
+        -- This skips setting up the host tick events. 
+        return 
     end
 
     -- collect data from files. 
