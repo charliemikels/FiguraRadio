@@ -69,8 +69,12 @@ local function kill_brodcast()
     fac_to_end_of_brodcast = 1
 end
 
+local function is_playing_brodcast()
+    return current_brodcast_key ~= nil
+end
+
 local function can_play_brodcast()
-    if not current_brodcast_sound then return true end
+    if not is_playing_brodcast() then return true end
 
     if current_brodcast_done_at < client:getSystemTime() then
         -- brodcast is done, but it was still non-nil. reset, and tell puncher it's ok to play next brodcast
@@ -115,7 +119,6 @@ local function play_a_brodcast()
     fac_to_end_of_brodcast = 0
 end
 
-
 -- Radio blocks management
 local function pos_is_a_radio(pos)
     local pcall_status, function_return = pcall(
@@ -155,7 +158,17 @@ end
 local function add_radio(pos)
     all_radios[tostring(pos)] = {
         pos = pos,
-        squish_scale = 1
+        squish_scale = 1,
+        current_knob_rotation_a = 180,
+        current_knob_rotation_b = 180,
+        current_knob_rotation_c = 180,
+        current_knob_rotation_side = 180,
+        current_tune_x_position = math.random()*-4.75,
+        target_knob_rotation_a = 180,
+        target_knob_rotation_b = 180,
+        target_knob_rotation_c = 180,
+        target_knob_rotation_side = 180,
+        target_tune_x_position = math.random()*-4.75,
     }
     radio_count = radio_count +1
     if nearest_radio_key == nil then
@@ -173,12 +186,22 @@ end
 
 -- interaction management
 local punches_to_next_brodcast = math.random(15)
+local last_tunning_position = 0
 local function radio_react_to_punch(pos)
     local current_radio = all_radios[tostring(pos)]
     
-    current_radio.squish_scale = 0.2
-
-    particles:newParticle("smoke", current_radio.pos + vec(math.random()/2+0.25,0.5,math.random()/2+0.25), vec(0, 0.1, 0))
+    if not is_playing_brodcast() then
+        current_radio.squish_scale = 0.2
+        current_radio.target_knob_rotation_a = math.random(0, 3)*90
+        current_radio.target_knob_rotation_b = math.random(0, 3)*90
+        current_radio.target_knob_rotation_c = math.random(0, 3)*90
+        current_radio.target_knob_rotation_side = math.random(0, 3)*90
+        
+        last_tunning_position = math.random()*-4.75
+        current_radio.target_tune_x_position = last_tunning_position
+    else
+        current_radio.squish_scale = 0.8
+    end
 
     if client:getViewer() then 
         if  not nearest_radio_key or not all_radios[nearest_radio_key]
@@ -202,7 +225,12 @@ local function radio_react_to_punch(pos)
             play_a_brodcast()
             sound_radio_tuned_click_1:setPos(sound_pos):stop():play()
             sound_radio_tuned_click_2:setPos(sound_pos):stop():play()
+            particles:newParticle("note", current_radio.pos + vec(math.random()/2+0.25,0.5,math.random()/2+0.25), vec(0, 0.2, 0))
+                :setColor(vectors.hsvToRGB(vec(math.random(), 0.8, 1)))
+            particles:newParticle("note", current_radio.pos + vec(math.random()/2+0.25,0.75,math.random()/2+0.25), vec(0, 0.3, 0))
+                :setColor(vectors.hsvToRGB(vec(math.random(), 0.8, 1)))
         else
+            particles:newParticle("smoke", current_radio.pos + vec(math.random()/2+0.25,0.5,math.random()/2+0.25), vec(0, 0.1, 0))
             sound_radio_tune_attempt:setPitch(math.random()*2+2):setPos(sound_pos):stop():play()
         end
     end
@@ -212,8 +240,12 @@ end
 -- render loops
 local function reset_skull() 
     radio_model:setScale(1,1,1)
+    radio_model["Tune Marker"]:setPos(-1,0,0)
+    radio_model["Knob A"]:setRot(0,0,0)
+    radio_model["Knob A"]:setRot(0,0,0)
+    radio_model["Knob C"]:setRot(0,0,0)
+    radio_model["Knob Side"]:setRot(0,0,0)
 end
-
 
 local function skull_renderer_loop(_, block)
     reset_skull()
@@ -233,23 +265,70 @@ local function skull_renderer_loop(_, block)
         return 
     end
 
-    -- animate punch squish effect
+    -- annimations 
+    -- -- punch effects
+    -- -- -- Tuning marker
+    if is_playing_brodcast() then
+        -- force all radios to match current tuning if playing a brodcast. 
+        current_radio.target_tune_x_position = last_tunning_position
+    end
+    current_radio.current_tune_x_position = math.lerp(
+        current_radio.current_tune_x_position,
+        current_radio.target_tune_x_position,
+        0.1
+    )
+    radio_model["Tune Marker"]:setPos( current_radio.current_tune_x_position ,0,0)
+    
+    -- -- -- knobs
+    current_radio.current_knob_rotation_a = math.lerp(
+        current_radio.current_knob_rotation_a,
+        current_radio.target_knob_rotation_a,
+        0.1
+    )
+    current_radio.current_knob_rotation_b = math.lerp(
+        current_radio.current_knob_rotation_b,
+        current_radio.target_knob_rotation_b,
+        0.1
+    )
+    current_radio.current_knob_rotation_c = math.lerp(
+        current_radio.current_knob_rotation_c,
+        current_radio.target_knob_rotation_c,
+        0.1
+    )
+    current_radio.current_knob_rotation_side = math.lerp(
+        current_radio.current_knob_rotation_side,
+        current_radio.target_knob_rotation_side,
+        0.1
+    )
+    radio_model["Knob A"]:setRot(0,0,current_radio.current_knob_rotation_a)
+    radio_model["Knob B"]:setRot(0,0,current_radio.current_knob_rotation_b)
+    radio_model["Knob C"]:setRot(0,0,current_radio.current_knob_rotation_c)
+    radio_model["Knob Side"]:setRot(current_radio.current_knob_rotation_side,0,0)
+
+    -- -- -- Squish and Squash: applied with bounce at the bottom
     local squish = current_radio.squish_scale
     current_radio.squish_scale = math.lerp(squish, 1, 0.2)
-    
+    local squash = (2+(squish*-1))
+
+    -- -- Animations while playing
+    local pulse = math.abs(math.sin(client:getSystemTime()/400))
+    local pulse_faster = math.abs(math.sin(client:getSystemTime()/200))
+
+    -- -- -- Bounce
     local bounce = (
         current_brodcast_key 
         and math.lerp(
-            (math.abs(math.sin(client:getSystemTime()/500)))/16 +1, 
+            (pulse)/16 +1.0125, 
             1, 
             fac_to_end_of_brodcast
         ) 
         or 1
     )
-    local squash = (2+(squish*-1))
-
     radio_model:setScale(squash ,bounce* squish, squash)
 
+    -- -- -- Speaker
+    local speaker_push = math.lerp(math.lerp(0.9, 1,pulse_faster), 1, fac_to_end_of_brodcast)
+    radio_model["Speaker"]:setScale(speaker_push, speaker_push, 1 )
 end
 
 
