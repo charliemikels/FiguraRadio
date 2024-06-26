@@ -561,19 +561,6 @@ if host:isHost() then
         return 
     end
 
-    -- collect data from files. 
-    for _, brodcast in ipairs(host_brodcasts) do 
-        local brodcast_file_read_stream = file:openReadStream(brodcast.file_path)
-        local available = brodcast_file_read_stream:available()
-        for i = 1, available do
-            -- table.insert(brodcast.data, data)
-            packet_index = math.floor((i - (i %max_packet_size ))/max_packet_size)+1
-            if not brodcast.data_packets[packet_index] then brodcast.data_packets[packet_index] = {} end
-            table.insert(brodcast.data_packets[packet_index], brodcast_file_read_stream:read())
-        end
-        brodcast_file_read_stream:close()
-    end
-
     -- file transfer
     -- "One goofy developer keeps sending packets without stopping! The backend hates him!"
 
@@ -617,5 +604,31 @@ if host:isHost() then
             end
         end
     end
-    events.TICK:register(send_data_to_clients_loop)
+
+    local last_processed_host_brodcast_key = nil
+    local function process_next_host_brodcast()
+        local current_host_brodcast_key, current_host_brodcast = next(host_brodcasts, last_processed_host_brodcast_key)
+        last_processed_host_brodcast_key = current_host_brodcast_key
+
+        if not current_host_brodcast_key then
+            events.WORLD_RENDER:remove("one-at-a-time_host_brodcast_processor_loop")
+            events.TICK:register(send_data_to_clients_loop)
+            return
+        end
+
+        local brodcast_file_read_stream = file:openReadStream(current_host_brodcast.file_path)
+        local available = brodcast_file_read_stream:available()
+        for i = 1, available do
+            -- table.insert(current_host_brodcast.data, data)
+            packet_index = math.floor((i - (i %max_packet_size ))/max_packet_size)+1
+            if not current_host_brodcast.data_packets[packet_index] then current_host_brodcast.data_packets[packet_index] = {} end
+            table.insert(current_host_brodcast.data_packets[packet_index], brodcast_file_read_stream:read())
+        end
+        brodcast_file_read_stream:close()
+    end
+
+    -- Tick allways goes in order, even if they take longer than 1/20 of a second, which can bring the game to a halt. 
+    -- world_render firers whenever it happens to be ready. 
+    -- usefull to prevent total freezes while processing many large files. 
+    events.WORLD_RENDER:register(process_next_host_brodcast, "one-at-a-time_host_brodcast_processor_loop")
 end
