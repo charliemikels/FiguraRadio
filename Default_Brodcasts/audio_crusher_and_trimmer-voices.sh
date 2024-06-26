@@ -16,10 +16,9 @@ new_filename="${base_name}-${seconds}s.ogg"
 ffmpeg -i "$filename"   \
     -ss "$starttime"    \
     -t "$seconds"       \
-    -map 0:a:0 -ac 1    \
-    -filter:a "highpass=f=200" -q:a 2 -ar 4000    \
+    -map 0:a:0 -ac 1               \
+    -q:a 2 -ar 6000 -filter:a "highpass=f=300, lowpass=f=3000"    \
     "$new_filename"
-# dynaudnorm reccomended by https://superuser.com/a/323127
 
 # Output the result
 echo "$new_filename"
