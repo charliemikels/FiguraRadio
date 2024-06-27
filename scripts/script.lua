@@ -10,7 +10,7 @@ local static_hiss_volume = 0.1
 local static_hiss_volume_during_brodcats = 0.05
 local static_hiss_punch_volume = 0.15
 
-local static_hiss = sounds["Pink-Loop"]:setPitch(1.25):setVolume(0):loop(true)
+local static_hiss = sounds["Pink-Loop"]:setPitch(1.25):setVolume(0):loop(true):setPos(0,-255,0)
 
 local brodcast_target_volume = 1
 
@@ -27,19 +27,10 @@ local radio_count = 0
 local nearest_radio_key = nil
 
 local radio_sound_pos_offset = vec(0.5,0.5,0.5)
-local fac_to_end_of_brodcast = 1    -- internal. Used to animate out of brodcast. 
 
 -- brodcasts
 local brodcasts = {}
-local current_brodcast_key = nil    -- TODO: rename or remove, this value is actualy only used to test if a brodcast is playing, and not actualy used to index. 
-local current_brodcast_sound = nil
-local current_brodcast_done_at = nil
-
-local currently_playing_brodcasts = {   -- TODO: per-radio brodcasts
-    -- radio pos
-    -- brodcast_table_index
-    -- sound_object_name
-} 
+local currently_playing_brodcasts = {} 
 
 local received_brodcast_from_host = false
 
@@ -59,7 +50,7 @@ local function load_internal_brodcasts()
 
             if seconds then 
                 local new_brodcast = {
-                    sound = sounds[sound_name]:setSubtitle("Radio Brodcast #"..tostring(#brodcasts +1)),
+                    -- sound = sounds[sound_name]:setSubtitle("Radio Brodcast #"..tostring(#brodcasts +1)),
                     sound_name = sound_name,
                     is_local = true,
                     durration = seconds*1000
@@ -107,31 +98,26 @@ end
 
 
 -- sound management
-local function reposition_sounds(radio_pos)
-    local sound_pos = radio_pos + radio_sound_pos_offset
-    static_hiss:setPos(sound_pos)
-    if current_brodcast_sound then current_brodcast_sound:setPos(sound_pos) end
+local function get_playing_brodcast(pos)
+    return currently_playing_brodcasts[tostring(pos)], tostring(pos)
 end
 
-local function kill_brodcast()
-    current_brodcast_sound:setVolume(0):stop()
-    current_brodcast_key = nil
-    current_brodcast_sound = nil
-    current_brodcast_done_at = nil
-    fac_to_end_of_brodcast = 1
+local function kill_brodcast(pos)
+    local current_brodcast, current_brodcast_index = get_playing_brodcast(pos)
+    current_brodcast.sound:setVolume(0):stop()
+    currently_playing_brodcasts[current_brodcast_index] = nil
+    return
 end
 
-local function is_playing_brodcast()
-    return current_brodcast_key ~= nil
-end
+local function can_play_brodcast(pos)  -- TODO: rename to "radio is bussy(radio pos)" when we implement per-radio brodcasts
+    local current_brodcast_at_pos = get_playing_brodcast(pos)
 
-local function can_play_brodcast()  -- TODO: rename to "radio is bussy(radio pos)" when we implement per-radio brodcasts
-    if not is_playing_brodcast() then return true end
+    if not current_brodcast_at_pos then return true end
 
-    if current_brodcast_done_at < client:getSystemTime() then
+    if current_brodcast_at_pos.done_at < client:getSystemTime() then
         -- brodcast is done, but it was still non-nil. reset, and tell puncher it's ok to play next brodcast
 
-        kill_brodcast()
+        kill_brodcast(pos)
         return true
     end
 
@@ -173,16 +159,57 @@ local function get_next_brodcast()
     return next_brodcast.sound_name, next_brodcast
 end
 
-local function play_a_brodcast()
+local function play_a_brodcast(pos)
     local _, selected_brodcast = get_next_brodcast()
 
-    selected_brodcast.sound:setVolume(0):setPos( all_radios[nearest_radio_key].pos + radio_sound_pos_offset )
-    current_brodcast_key = selected_brodcast
-    current_brodcast_sound = selected_brodcast.sound
-    current_brodcast_done_at = selected_brodcast.durration + client:getSystemTime()
+    local new_playing_brodcast = {
+        radio_pos = pos, 
+        brodcast = selected_brodcast,
+        sound = sounds[selected_brodcast.sound_name]
+            :setSubtitle("Radio Plays")
+            :setVolume(0)
+            :setPos(pos + radio_sound_pos_offset),
+        sound_name = selected_brodcast.sound_name,
+        started_at = client:getSystemTime(),
+        done_at = selected_brodcast.durration + client:getSystemTime(),
 
-    current_brodcast_sound:play()
-    fac_to_end_of_brodcast = 0
+        get_progress_factor = function(__self)
+            -- gets the factor value used in letp fns to fade in and out features at the starts and end of this brodcast. 
+            local brodcast_start_time = __self.started_at
+            local brodcast_fade_up_end = brodcast_start_time + 1000
+            local brodcast_fade_down_start = brodcast_start_time + selected_brodcast.durration - 2000
+            local brodcast_done_time = __self.done_at
+    
+            local current_time = client:getSystemTime()
+    
+            local fade_in_fac = 0
+            local fade_out_fac = 1
+            local both = nil
+
+            if current_time <= brodcast_start_time then
+                both = 0
+            elseif current_time <= brodcast_fade_up_end then 
+                fade_in_fac = (current_time-brodcast_start_time)/(brodcast_fade_up_end-brodcast_start_time)
+                both = fade_in_fac
+            elseif current_time <= brodcast_fade_down_start then
+                both = 1
+                fade_in_fac = 1
+            elseif current_time <= brodcast_done_time then
+                fade_in_fac = 1
+                fade_out_fac = (current_time-brodcast_done_time)/(brodcast_fade_down_start-brodcast_done_time)
+                both = fade_out_fac
+            else
+                fade_in_fac = 1
+                fade_out_fac = 0
+                both = 0
+            end
+
+            return both, fade_in_fac, fade_out_fac
+        end
+    }
+
+    currently_playing_brodcasts[tostring(pos)] = new_playing_brodcast
+    currently_playing_brodcasts[tostring(pos)].sound:play()
 end
 
 -- Radio blocks management
@@ -239,7 +266,6 @@ local function add_radio(pos)
     radio_count = radio_count +1
     if nearest_radio_key == nil then
         nearest_radio_key = tostring(pos)
-        reposition_sounds(pos)
         static_hiss:play()
     end
 end
@@ -256,7 +282,7 @@ local last_tunning_position = 0
 local function radio_react_to_punch(pos)
     local current_radio = all_radios[tostring(pos)]
     
-    if not is_playing_brodcast() then
+    if not get_playing_brodcast(pos) then
         current_radio.squish_scale = 0.2
         current_radio.target_knob_rotation_a = math.random(0, 3)*90
         current_radio.target_knob_rotation_b = math.random(0, 3)*90
@@ -275,21 +301,20 @@ local function radio_react_to_punch(pos)
                 > distancesquared(client:getViewer():getPos(), current_radio.pos) )
         then
             nearest_radio_key = tostring(current_radio.pos)
-            reposition_sounds(current_radio.pos)
         end
     end
 
     local sound_pos = pos+radio_sound_pos_offset
     static_hiss:setVolume(static_hiss_punch_volume)
 
-    if can_play_brodcast() then
+    if can_play_brodcast(pos) then
         punches_to_next_brodcast = punches_to_next_brodcast -1
         if punches_to_next_brodcast < 1 and syncronization_window_is_open()
         then
             -- play next brodcast
             punches_to_next_brodcast = 2
             -- print("Playing brodcast")
-            play_a_brodcast()
+            play_a_brodcast(pos)
 
             sound_radio_tuned_click_1:setPos(sound_pos):stop():play()
             sound_radio_tuned_click_2:setPos(sound_pos):stop():play()
@@ -314,6 +339,7 @@ local function reset_skull()
     radio_model["Knob A"]:setRot(0,0,0)
     radio_model["Knob C"]:setRot(0,0,0)
     radio_model["Knob Side"]:setRot(0,0,0)
+    radio_model["Speaker"]:setScale(1, 1, 1 )
 end
 
 local function skull_renderer_loop(_, block)
@@ -337,10 +363,6 @@ local function skull_renderer_loop(_, block)
     -- annimations 
     -- -- punch effects
     -- -- -- Tuning marker
-    if is_playing_brodcast() then
-        -- force all radios to match current tuning if playing a brodcast. 
-        current_radio.target_tune_x_position = last_tunning_position
-    end
     current_radio.current_tune_x_position = math.lerp(
         current_radio.current_tune_x_position,
         current_radio.target_tune_x_position,
@@ -380,24 +402,32 @@ local function skull_renderer_loop(_, block)
     local squash = (2+(squish*-1))
 
     -- -- Animations while playing
-    local pulse = math.abs(math.sin(client:getSystemTime()/400))
-    local pulse_faster = math.abs(math.sin(client:getSystemTime()/200))
+    local current_radio_brodcast = get_playing_brodcast(block:getPos())
+    if current_radio_brodcast then
 
-    -- -- -- Bounce
-    local bounce = (
-        current_brodcast_key 
-        and math.lerp(
-            (pulse)/16 +1.0125, 
-            1, 
-            fac_to_end_of_brodcast
-        ) 
-        or 1
-    )
-    radio_model:setScale(squash ,bounce* squish, squash)
+        local pulse        = math.abs(math.sin((client:getSystemTime()+current_radio_brodcast.started_at)/400))
+        local pulse_faster = math.abs(math.sin((client:getSystemTime()+current_radio_brodcast.started_at)/200))
 
-    -- -- -- Speaker
-    local speaker_push = math.lerp(math.lerp(0.9, 1,pulse_faster), 1, fac_to_end_of_brodcast)
-    radio_model["Speaker"]:setScale(speaker_push, speaker_push, 1 )
+        local both_factor, _, out_factor = current_radio_brodcast:get_progress_factor()
+
+        -- -- -- Bounce
+        local bounce = (math.lerp(
+                1,
+                (pulse)/16 +1.0125, 
+                out_factor
+            ) 
+        )
+        radio_model:setScale(squash ,bounce* squish, squash)
+
+        -- -- -- Speaker
+        local speaker_push = math.lerp(1, 
+            math.lerp(0.9, 1,pulse_faster), 
+            both_factor
+        )
+        radio_model["Speaker"]:setScale(speaker_push, speaker_push, 1)
+    else
+        radio_model:setScale(squash ,squish, squash)
+    end
 end
 
 
@@ -415,7 +445,6 @@ local function world_radio_checkup_loop()
     if not current_key then 
         if radio_count == 0 then
             nearest_radio_key = nil
-            reposition_sounds(vec(0, -255, 0))
         end
         
         return 
@@ -437,7 +466,6 @@ local function world_radio_checkup_loop()
             nearest_radio_key = current_key
             -- print("new nearest radio")
             particles:newParticle("smoke", current_radio.pos + radio_sound_pos_offset, vec(0, 0, 0))
-            reposition_sounds(current_radio.pos)
         end
     end
 end
@@ -446,53 +474,82 @@ local function world_tick_loop()
     -- check next radio and clean up radio list if any are missing. 
     world_radio_checkup_loop()
 
-    -- animate sound volumes
-    if current_brodcast_sound then
-        if current_brodcast_done_at < client:getSystemTime() 
-        then 
-            kill_brodcast() 
+    -- animate sounds
+    -- brodcast fade in/out
+    for _, current_brodcast in pairs(currently_playing_brodcasts) do
+        local real_pos = current_brodcast.radio_pos 
+
+        
+        if current_brodcast.done_at < client:getSystemTime()
+        then
+            kill_brodcast(real_pos)
         else
-            local remaining_durration = current_brodcast_done_at - client:getSystemTime()
-
-            local fadeout_time = 2 *1000
-            fac_to_end_of_brodcast = (math.min((remaining_durration), fadeout_time) /fadeout_time) *-1 +1
-
-            current_brodcast_sound:setVolume( 
+            current_brodcast.sound:setVolume(
                 math.lerp(
-                    math.lerp(
-                        current_brodcast_sound:getVolume(), 
-                        brodcast_target_volume, 
-                        0.1 -- lets sound ramp up
-                        ),
-                    0,  
-                    fac_to_end_of_brodcast  -- forces brodcast to 0 at the end
-                ) 
+                    0,
+                    brodcast_target_volume, 
+                    current_brodcast:get_progress_factor() -- lets sound ramp up and down
+                )
             )
+        end
+    end
 
-            static_hiss:setVolume( 
-                math.lerp(static_hiss:getVolume(), 
-                    math.lerp( 
-                        static_hiss_volume_during_brodcats,
-                        static_hiss_volume, 
-                        fac_to_end_of_brodcast  -- inverted, because it's ok if the noise slides arround a bit more. It's animated on every tick anywhays.
-                    ),
+    -- -- hiss volume
+    local target_static_his_volume = static_hiss_volume
+    -- if nearest_radio_key then
+        local nearest_brodcast = (all_radios[nearest_radio_key] and get_playing_brodcast(all_radios[nearest_radio_key].pos) or nil)
+        if nearest_brodcast then
+            target_static_his_volume = math.lerp( 
+                static_hiss_volume, 
+                static_hiss_volume_during_brodcats,
+                nearest_brodcast:get_progress_factor()  -- inverted, because it's ok if the noise slides arround a bit more. It's animated on every tick anywhays.
+            )
+        end
+    -- else
+    --     print("here")
+    --     -- static_hiss:setVolume(0)
+    -- end
+
+    static_hiss:setVolume(
+        math.lerp(
+            static_hiss:getVolume(), 
+            target_static_his_volume,
+            0.2
+        )
+    )
+
+    -- -- his position
+    if nearest_radio_key and radio_count > 0 then 
+        local target_pos = all_radios[nearest_radio_key].pos
+        if static_hiss:getPos().y <= -200 then
+            -- static_hiss sound gets banished to (0,-255,0) this is a quick check to see it's status. 
+            -- (since apparently, is_playing isn't reliable (thus says the wiki))
+            -- immediatly reset pos and volume
+            static_hiss:setPos(target_pos):volume(0)
+        else
+            static_hiss:setPos(
+                math.lerp(
+                    static_hiss:getPos(),
+                    target_pos,
                     0.2
                 )
             )
         end
     else
-        static_hiss:setVolume( math.lerp(static_hiss:getVolume(), static_hiss_volume, 0.1  ) )
+        -- no nearby radio
+        static_hiss:setPos(0,-255,0)
     end
 
+
+
+
     -- get players interacting with radios
-    local punchedRadios = {}
-    for k, loopPlayer in pairs(world.getPlayers()) do
+    for _, loopPlayer in pairs(world.getPlayers()) do
         if (loopPlayer:getSwingTime() == 1) then -- this player punched this tick
             local punchedBlock, _, _ = loopPlayer:getTargetedBlock(true, block_reach)
             if pos_is_known_radio(punchedBlock:getPos()) then
                 -- print("That's a radio")
                 radio_react_to_punch(punchedBlock:getPos())
-                table.insert(punchedRadios, punchedBlock:getPos())
             end
         end
     end
