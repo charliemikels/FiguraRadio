@@ -457,7 +457,8 @@ events.SKULL_RENDER:register(render_request_permission_sign_loop, "render_reques
 
 
 -- Pings
-local max_packet_size = 500
+local max_packet_size = 500 -- note: if your song takes more than max_packet_size packets, 
+                            -- then there will be a conversion error trying to assign a number > than 255 to the "total packets" count
 local max_packet_rate = 1500
 -- local max_packet_rate = 100  -- DEV. Disable pings when using this option. 
 local last_packet_sent = client:getSystemTime()
