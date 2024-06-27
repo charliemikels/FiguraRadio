@@ -307,7 +307,7 @@ local function radio_react_to_punch(pos)
     if all_radios[nearest_radio_key] and all_radios[nearest_radio_key].pos == pos then
         static_hiss:setVolume(static_hiss_punch_volume)
     end
-    
+
     local sound_pos = pos+radio_sound_pos_offset
 
     if can_play_brodcast(pos) then
@@ -592,40 +592,59 @@ local max_packet_rate = 1500
 -- local max_packet_rate = 100  -- DEV. Disable pings when using this option. 
 local last_packet_sent = client:getSystemTime()
 
-local incomming_brodcasts = {}
+local function make_remore_brodcast_sound_name(id_number) 
+    return "remote_brodcast#"..tostring(id_number)--.."-"..tostring(durration_in_s).."s"
+end 
+
+local incomming_brodcasts = nil
 local function ping_brodcast_data_to_client(byte_string_packet)
     if not byte_string_packet then return end
 
     local raw_packet_data_table = table.pack(string.byte(byte_string_packet, 1, -1))
 
     local brodcast_id = raw_packet_data_table[1]
-    local packet_index = raw_packet_data_table[2]
-    local total_packets_count = raw_packet_data_table[3]
-    local durration_in_s = raw_packet_data_table[4]
+    local total_num_host_brodcasts = raw_packet_data_table[2]
+    local packet_index = raw_packet_data_table[3]
+    local total_packets_count = raw_packet_data_table[4]
+    local durration_in_s = raw_packet_data_table[5]
 
-    local brodcast_name_string = "remote_brodcast#"..tostring(brodcast_id).."-"..tostring(durration_in_s).."s"
+    if not incomming_brodcasts then
+        -- this is the first time we're heard from the host
+        -- Populate the tables with dummy data to help the 
+        -- randomizers stay in sync, even if we missed a brodcast already. 
+        incomming_brodcasts = {}
+        for id = 1, total_num_host_brodcasts do
+            -- brodcast IDs are all numeric. 
+            incomming_brodcasts[id] = {}
+            incomming_brodcasts[id].done = false
+            incomming_brodcasts[id].not_heard_from = true
+            incomming_brodcasts[id].incomming_id = id
 
-    if not incomming_brodcasts[brodcast_id] then 
+            table.insert(brodcasts, #brodcasts +1, {
+                sound_name = make_remore_brodcast_sound_name(id),
+                is_local = false,
+                is_incomming = true
+            })
+        end
+        sort_brodcasts_table()
+    end
+    
+    local brodcast_name_string = make_remore_brodcast_sound_name(brodcast_id)
+
+    if incomming_brodcasts[brodcast_id].not_heard_from then 
         -- first time seeing this brodcast
-        incomming_brodcasts[brodcast_id] = {}
+        incomming_brodcasts[brodcast_id].not_heard_from = nil
+
         incomming_brodcasts[brodcast_id].total_packets_count = total_packets_count
         incomming_brodcasts[brodcast_id].packet_count = 0
         incomming_brodcasts[brodcast_id].durration_in_s = durration_in_s
         incomming_brodcasts[brodcast_id].packet_data = {}
         incomming_brodcasts[brodcast_id].done = false
-
-        table.insert(brodcasts, #brodcasts +1, {
-            sound_name = brodcast_name_string,
-            is_local = false,
-            durration = durration_in_s*1000,
-            is_incomming = true
-        })
-        sort_brodcasts_table()
     end
 
     if incomming_brodcasts[brodcast_id].done then return end 
 
-    local ogg_data_part = {table.unpack(raw_packet_data_table, 5, #raw_packet_data_table)}
+    local ogg_data_part = {table.unpack(raw_packet_data_table, 6, #raw_packet_data_table)}
 
     if not incomming_brodcasts[brodcast_id].packet_data[packet_index] then
         -- first time seeing this packet. 
@@ -651,7 +670,8 @@ local function ping_brodcast_data_to_client(byte_string_packet)
         -- processing is done. find and update the placeholder brodcast
         for _, search_brodcast in ipairs(brodcasts) do
             if search_brodcast.sound_name == brodcast_name_string then
-                search_brodcast.sound = sounds[brodcast_name_string]:setSubtitle("Radio Brodcast #"..tostring(brodcast_id))
+                search_brodcast.sound = sounds[brodcast_name_string]:setSubtitle(brodcast_name_string)
+                search_brodcast.durration = durration_in_s*1000
                 search_brodcast.is_incomming = nil
                 break
             end 
@@ -761,7 +781,7 @@ if host:isHost() then
             -- packet_byte_table = table.pack(string.byte(packet_byte_string, 1, -1))
 
             if pos_is_a_radio(player:getTargetedBlock(true, block_reach):getPos()) then 
-                host:actionbar("Brodcast #"..packet_byte_table[1].." - Sending packet "..packet_byte_table[2].." of "..packet_byte_table[3])
+                host:actionbar("Brodcast #"..packet_byte_table[1].." of "..packet_byte_table[2].." - Sending packet "..packet_byte_table[3].." of "..packet_byte_table[4])
             end
         end
     end
@@ -782,6 +802,7 @@ if host:isHost() then
         local total_packets = math.floor((available - (available %max_packet_size ))/max_packet_size)
         local packet_builder = {}
         table.insert(packet_builder, tonumber(current_host_brodcast_key))
+        table.insert(packet_builder, tonumber(#host_brodcasts))
         table.insert(packet_builder, tonumber(1))
         table.insert(packet_builder, tonumber(total_packets))
         table.insert(packet_builder, tonumber(current_host_brodcast.durration))
@@ -800,6 +821,7 @@ if host:isHost() then
 
                 packet_builder = {}
                 table.insert(packet_builder, tonumber(current_host_brodcast_key))
+                table.insert(packet_builder, tonumber(#host_brodcasts))
                 table.insert(packet_builder, tonumber(packet_index))
                 table.insert(packet_builder, tonumber(total_packets))
                 table.insert(packet_builder, tonumber(current_host_brodcast.durration))
