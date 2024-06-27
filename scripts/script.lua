@@ -3,6 +3,8 @@ events.ENTITY_INIT:register(function() print("Entity init → "..client:getSyste
 
 local radio_model = models["radio"]["Skull"]
 
+local use_ping_file_transfer = true
+
 -- functional sounds
 local static_hiss_volume = 0.1
 local static_hiss_volume_during_brodcats = 0.05
@@ -17,7 +19,9 @@ local sound_radio_tuned_click_2 = sounds["block.note_block.cow_bell"]:setPitch(2
 local sound_radio_tune_attempt  = sounds["block.note_block.snare"]:setPitch(3):setSubtitle("Radio Clicks")
 
 -- radio management
-local max_distance_from_radios = 16
+local block_reach = 4.5 -- how far away can the player be where punch triggers the radio reaction. 
+
+local max_distance_from_radios = 16 -- how far away untill script stops thinking about them. 
 local all_radios = {}
 local radio_count = 0
 local nearest_radio_key = nil
@@ -27,30 +31,78 @@ local fac_to_end_of_brodcast = 1    -- internal. Used to animate out of brodcast
 
 -- brodcasts
 local brodcasts = {}
-local current_brodcast_key = nil
+local current_brodcast_key = nil    -- TODO: rename or remove, this value is actualy only used to test if a brodcast is playing, and not actualy used to index. 
 local current_brodcast_sound = nil
 local current_brodcast_done_at = nil
 
+local currently_playing_brodcasts = {   -- TODO: per-radio brodcasts
+    -- radio pos
+    -- brodcast_table_index
+    -- sound_object_name
+} 
+
 local received_brodcast_from_host = false
 
-for _, sound_name in pairs(sounds:getCustomSounds()) do
-    if string.match(sound_name, "Default_Brodcasts.") then
-        
-        local _, _, seconds = string.find(sound_name, "-(%d+)s$")
+local function sort_brodcasts_table()
+    table.sort(brodcasts, function(a,b) 
+        if a.is_local ~= b.is_local then return a.is_local end
+        return a.sound_name < b.sound_name 
+    end)
+end
 
-        if seconds then 
-            local new_brodcast = {
-                sound = sounds[sound_name]:setSubtitle("Radio Brodcast #"..tostring(#brodcasts +1)),
-                is_local = true,
-                durration = seconds*1000
-            }
-            table.insert(
-                brodcasts, 
-                math.random(1, #brodcasts+1), 
-                new_brodcast
-            )
+
+local function load_internal_brodcasts()
+    for _, sound_name in pairs(sounds:getCustomSounds()) do
+        if string.match(sound_name, "Default_Brodcasts.") then
+            
+            local _, _, seconds = string.find(sound_name, "-(%d+)s$")
+
+            if seconds then 
+                local new_brodcast = {
+                    sound = sounds[sound_name]:setSubtitle("Radio Brodcast #"..tostring(#brodcasts +1)),
+                    sound_name = sound_name,
+                    is_local = true,
+                    durration = seconds*1000
+                }
+                table.insert(
+                    brodcasts, 
+                    #brodcasts+1, --math.random(1, #brodcasts+1), 
+                    new_brodcast
+                )
+            end
         end
     end
+    sort_brodcasts_table()
+end
+load_internal_brodcasts()
+
+-- -- syncronization
+local function get_current_brodcast_seed_pre_floor()
+    return world:getTime()/20
+end
+
+local function get_current_brodcast_seed()
+    return math.floor(get_current_brodcast_seed_pre_floor())
+    -- gets a new,fixed seed every second
+end
+
+local attempts_before_sync_window_opens = math.huge
+local last_sync_seed = 0
+
+local function syncronization_window_is_open()
+
+    local current_seed = get_current_brodcast_seed()
+    if current_seed ~= last_sync_seed then
+        last_sync_seed = current_seed
+
+        math.randomseed(current_seed)
+        attempts_before_sync_window_opens = math.random(3)
+        math.randomseed(get_current_brodcast_seed_pre_floor())
+    else
+        attempts_before_sync_window_opens = attempts_before_sync_window_opens -1
+    end
+
+    return attempts_before_sync_window_opens < 1
 end
 
 
@@ -73,7 +125,7 @@ local function is_playing_brodcast()
     return current_brodcast_key ~= nil
 end
 
-local function can_play_brodcast()
+local function can_play_brodcast()  -- TODO: rename to "radio is bussy(radio pos)" when we implement per-radio brodcasts
     if not is_playing_brodcast() then return true end
 
     if current_brodcast_done_at < client:getSystemTime() then
@@ -86,25 +138,39 @@ local function can_play_brodcast()
     return false
 end
 
-local last_brodcast_index = nil
-local function get_next_brodcast() 
-    local next_brodcast_index, next_brodcast = next(brodcasts, last_brodcast_index)
-    
-    if not next_brodcast_index then 
-        -- last brodcast was the last brodcast in the list. reshuffle and start again.
-        -- this process reduces the chance of playing the same brodcast 2+ times in a row. 
+-- local last_brodcast_index = nil
+local recent_brodcasts = {}
+local recent_brodcasts_table_last_checked = client.getSystemTime()
+local function brodcast_was_recently_played(brodcast_name)
+    if recent_brodcasts_table_last_checked + 60000 < client.getSystemTime() then recent_brodcasts = {} end
 
-        local shuffled_brodcasts = {}
-        for _, v in pairs(brodcasts) do
-            table.insert(shuffled_brodcasts, math.random(1, #shuffled_brodcasts+1), v)
+    recent_brodcasts_table_last_checked = client.getSystemTime()
+    if #recent_brodcasts < 1 then return false end
+    for _, recent_brodcast_names in ipairs(recent_brodcasts) do
+        if recent_brodcast_names == brodcast_name then
+            return true
         end
-
-        brodcasts = shuffled_brodcasts
-
-        next_brodcast_index, next_brodcast = next(brodcasts, nil)
     end
-    last_brodcast_index = next_brodcast_index
-    return next_brodcast_index, next_brodcast
+    return false
+end
+
+local function get_next_brodcast() 
+    math.randomseed(get_current_brodcast_seed())
+    
+    -- local next_brodcast_index = nil
+    local next_brodcast = nil
+    repeat
+        -- next_brodcast_index = math.random(#brodcasts)
+        next_brodcast = brodcasts[math.random(#brodcasts)]
+    until (not brodcast_was_recently_played(next_brodcast.sound_name) and not next_brodcast.is_incomming)
+    
+
+    table.insert(recent_brodcasts, next_brodcast.sound_name)
+    if #recent_brodcasts > 2 then 
+        table.remove(recent_brodcasts, 1) 
+    end
+
+    return next_brodcast.sound_name, next_brodcast
 end
 
 local function play_a_brodcast()
@@ -185,7 +251,7 @@ end
 
 
 -- interaction management
-local punches_to_next_brodcast = math.random(15)
+local punches_to_next_brodcast = 2
 local last_tunning_position = 0
 local function radio_react_to_punch(pos)
     local current_radio = all_radios[tostring(pos)]
@@ -196,9 +262,9 @@ local function radio_react_to_punch(pos)
         current_radio.target_knob_rotation_b = math.random(0, 3)*90
         current_radio.target_knob_rotation_c = math.random(0, 3)*90
         current_radio.target_knob_rotation_side = math.random(0, 3)*90
-        
+        math.random(get_current_brodcast_seed())
         last_tunning_position = math.random()*-4.75
-        current_radio.target_tune_x_position = last_tunning_position
+        math.random(get_current_brodcast_seed_pre_floor())
     else
         current_radio.squish_scale = 0.8
     end
@@ -218,11 +284,13 @@ local function radio_react_to_punch(pos)
 
     if can_play_brodcast() then
         punches_to_next_brodcast = punches_to_next_brodcast -1
-        if punches_to_next_brodcast < 1 then
+        if punches_to_next_brodcast < 1 and syncronization_window_is_open()
+        then
             -- play next brodcast
-            punches_to_next_brodcast = math.random(5, 15)
+            punches_to_next_brodcast = 2
             -- print("Playing brodcast")
             play_a_brodcast()
+
             sound_radio_tuned_click_1:setPos(sound_pos):stop():play()
             sound_radio_tuned_click_2:setPos(sound_pos):stop():play()
             particles:newParticle("note", current_radio.pos + vec(math.random()/2+0.25,0.5,math.random()/2+0.25), vec(0, 0.2, 0))
@@ -232,6 +300,7 @@ local function radio_react_to_punch(pos)
         else
             particles:newParticle("smoke", current_radio.pos + vec(math.random()/2+0.25,0.5,math.random()/2+0.25), vec(0, 0.1, 0))
             sound_radio_tune_attempt:setPitch(math.random()*2+2):setPos(sound_pos):stop():play()
+            current_radio.target_tune_x_position = last_tunning_position
         end
     end
 end
@@ -419,7 +488,7 @@ local function world_tick_loop()
     local punchedRadios = {}
     for k, loopPlayer in pairs(world.getPlayers()) do
         if (loopPlayer:getSwingTime() == 1) then -- this player punched this tick
-            local punchedBlock, _, _ = loopPlayer:getTargetedBlock()
+            local punchedBlock, _, _ = loopPlayer:getTargetedBlock(true, block_reach)
             if pos_is_known_radio(punchedBlock:getPos()) then
                 -- print("That's a radio")
                 radio_react_to_punch(punchedBlock:getPos())
@@ -444,7 +513,7 @@ local function render_request_permission_sign_loop(_, block)
     radio_model["PermissionRequestSign"]:setVisible(false)
     if avatar:getPermissionLevel() == "MAX" then 
         -- events.SKULL_RENDER:remove("render_request_permission_sign_loop")
-    elseif block and pcall(client.getViewer) and client.getViewer():getTargetedBlock():getPos() == block:getPos() then 
+    elseif block and pcall(client.getViewer) and client.getViewer():getTargetedBlock(true, block_reach):getPos() == block:getPos() then 
         radio_model["PermissionRequestSign"]:setVisible(true)
     end
 end
@@ -474,13 +543,24 @@ local function ping_brodcast_data_to_client(byte_string_packet)
     local total_packets_count = raw_packet_data_table[3]
     local durration_in_s = raw_packet_data_table[4]
 
+    local brodcast_name_string = "remote_brodcast#"..tostring(brodcast_id).."-"..tostring(durration_in_s).."s"
+
     if not incomming_brodcasts[brodcast_id] then 
+        -- first time seeing this brodcast
         incomming_brodcasts[brodcast_id] = {}
         incomming_brodcasts[brodcast_id].total_packets_count = total_packets_count
         incomming_brodcasts[brodcast_id].packet_count = 0
         incomming_brodcasts[brodcast_id].durration_in_s = durration_in_s
         incomming_brodcasts[brodcast_id].packet_data = {}
         incomming_brodcasts[brodcast_id].done = false
+
+        table.insert(brodcasts, #brodcasts +1, {
+            sound_name = brodcast_name_string,
+            is_local = false,
+            durration = durration_in_s*1000,
+            is_incomming = true
+        })
+        sort_brodcasts_table()
     end
 
     if incomming_brodcasts[brodcast_id].done then return end 
@@ -506,25 +586,23 @@ local function ping_brodcast_data_to_client(byte_string_packet)
             end
         end
 
-        local brodcast_name_string = "remote_brodcast#"..tostring(brodcast_id).."-"..tostring(durration_in_s).."s"
-
         sounds:newSound(brodcast_name_string, full_data)
 
-        local new_brodcast = {
-            sound = sounds[brodcast_name_string]:setSubtitle("Radio Brodcast #"..tostring(#brodcasts +1)),
-            is_local = false,
-            durration = durration_in_s*1000
-        }
-        table.insert(
-            brodcasts, 
-            math.random((last_brodcast_index and last_brodcast_index or 1), #brodcasts+1),
-            new_brodcast
-        )
+        -- processing is done. find and update the placeholder brodcast
+        for _, search_brodcast in ipairs(brodcasts) do
+            if search_brodcast.sound_name == brodcast_name_string then
+                search_brodcast.sound = sounds[brodcast_name_string]:setSubtitle("Radio Brodcast #"..tostring(brodcast_id))
+                search_brodcast.is_incomming = nil
+                break
+            end 
+        end
 
         incomming_brodcasts[brodcast_id].packets = nil
+
         if not received_brodcast_from_host and nearest_radio_key then 
             if not host:isHost() then print("Received a remote brodcast") end
             -- TODO: make radio react to successfuly host → client brodcasts
+            -- ie a light goes from red to green or something. 
         end
         received_brodcast_from_host = true
     end
@@ -565,6 +643,9 @@ if host:isHost() then
                 })
             end 
         end
+        table.sort(host_brodcasts, function(a,b) 
+            return a.file_path < b.file_path
+        end)
     end
 
     if #host_brodcasts == 0 then 
@@ -574,7 +655,7 @@ if host:isHost() then
     end
 
     -- file transfer
-    -- "One goofy developer keeps sending packets without stopping! The backend hates him!"
+    -- "The backend hates this one simple trick!"
 
     local current_sending_brodcast_index = next(host_brodcasts)
     local function get_next_packet_to_send()
@@ -610,12 +691,16 @@ if host:isHost() then
             local packet_byte_string, packet_byte_table = get_next_packet_to_send()
             -- printTable(packet_byte_string)
 
-            pings.ping_brodcast_data_to_client(packet_byte_string)
+            if use_ping_file_transfer then 
+                pings.ping_brodcast_data_to_client(packet_byte_string)
+            else
+                ping_brodcast_data_to_client(packet_byte_string)
+            end
 
             -- byte_str → table test. effects actionbar
             -- packet_byte_table = table.pack(string.byte(packet_byte_string, 1, -1))
 
-            if pos_is_a_radio(player:getTargetedBlock():getPos()) then 
+            if pos_is_a_radio(player:getTargetedBlock(true, block_reach):getPos()) then 
                 host:actionbar("Brodcast #"..packet_byte_table[1].." - Sending packet "..packet_byte_table[2].." of "..packet_byte_table[3])
             end
         end
