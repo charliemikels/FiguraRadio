@@ -304,8 +304,11 @@ local function radio_react_to_punch(pos)
         end
     end
 
+    if all_radios[nearest_radio_key] and all_radios[nearest_radio_key].pos == pos then
+        static_hiss:setVolume(static_hiss_punch_volume)
+    end
+    
     local sound_pos = pos+radio_sound_pos_offset
-    static_hiss:setVolume(static_hiss_punch_volume)
 
     if can_play_brodcast(pos) then
         punches_to_next_brodcast = punches_to_next_brodcast -1
