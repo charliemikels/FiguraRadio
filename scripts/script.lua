@@ -457,27 +457,38 @@ events.SKULL_RENDER:register(render_request_permission_sign_loop, "render_reques
 
 
 -- Pings
-local max_packet_size = 750
--- local max_packet_rate = 1500
-local max_packet_rate = 100  -- DEV
+local max_packet_size = 500
+local max_packet_rate = 1500
+-- local max_packet_rate = 100  -- DEV. Disable pings when using this option. 
 local last_packet_sent = client:getSystemTime()
 
 local incomming_brodcasts = {}
-local function ping_brodcast_data_to_client(brodcast_id, packet_number, total_packets_count, durration_in_s, data)
+local function ping_brodcast_data_to_client(byte_string_packet)
+    if not byte_string_packet then return end
+
+    local raw_packet_data_table = table.pack(string.byte(byte_string_packet, 1, -1))
+
+    local brodcast_id = raw_packet_data_table[1]
+    local packet_index = raw_packet_data_table[2]
+    local total_packets_count = raw_packet_data_table[3]
+    local durration_in_s = raw_packet_data_table[4]
+
     if not incomming_brodcasts[brodcast_id] then 
         incomming_brodcasts[brodcast_id] = {}
         incomming_brodcasts[brodcast_id].total_packets_count = total_packets_count
         incomming_brodcasts[brodcast_id].packet_count = 0
         incomming_brodcasts[brodcast_id].durration_in_s = durration_in_s
-        incomming_brodcasts[brodcast_id].packets = {}
+        incomming_brodcasts[brodcast_id].packet_data = {}
         incomming_brodcasts[brodcast_id].done = false
     end
 
     if incomming_brodcasts[brodcast_id].done then return end 
 
-    if not incomming_brodcasts[brodcast_id].packets[packet_number] then
+    local ogg_data_part = {table.unpack(raw_packet_data_table, 5, #raw_packet_data_table)}
+
+    if not incomming_brodcasts[brodcast_id].packet_data[packet_index] then
         -- first time seeing this packet. 
-        incomming_brodcasts[brodcast_id].packets[packet_number] = data
+        incomming_brodcasts[brodcast_id].packet_data[packet_index] = ogg_data_part
         incomming_brodcasts[brodcast_id].packet_count = incomming_brodcasts[brodcast_id].packet_count +1
     end
 
@@ -488,10 +499,9 @@ local function ping_brodcast_data_to_client(brodcast_id, packet_number, total_pa
         -- print("Brodcast #"..brodcast_id.." has been received")
         
         local full_data = {}
-
-        for packet_index = 1, incomming_brodcasts[brodcast_id].total_packets_count do
-            for _, data in ipairs(incomming_brodcasts[brodcast_id].packets[packet_index]) do
-               table.insert(full_data, data)
+        for packet_i = 1, incomming_brodcasts[brodcast_id].total_packets_count do
+            for _, byte in ipairs(incomming_brodcasts[brodcast_id].packet_data[packet_i]) do
+               table.insert(full_data, byte)
             end
         end
 
@@ -519,9 +529,9 @@ local function ping_brodcast_data_to_client(brodcast_id, packet_number, total_pa
     end
 end
 
--- function pings.ping_brodcast_data_to_client(brodcast_id, packet_number, total_packets_count, durration_in_s, data)
---     ping_brodcast_data_to_client(brodcast_id, packet_number, total_packets_count, durration_in_s, data)
--- end
+function pings.ping_brodcast_data_to_client(byte_string_packet)
+    ping_brodcast_data_to_client(byte_string_packet)
+end
 
 
 -- Host only
@@ -549,7 +559,8 @@ if host:isHost() then
                     file_path = host_brodcast_files_root..filename,
                     durration = seconds,
                     -- data = {},
-                    data_packets = {}
+                    data_packets = {},
+                    data_packets_tables = {}
                 })
             end 
         end
@@ -574,11 +585,11 @@ if host:isHost() then
         local packet_index, packet = next(host_brodcasts[current_sending_brodcast_index].data_packets, host_brodcasts[current_sending_brodcast_index].last_packet_index)
 
         if not packet_index then 
-            -- we passed last packet. Reset and loop back arround. 
+            -- we passed last packet. Reset and move to next brodcast. 
             host_brodcasts[current_sending_brodcast_index].last_packet_index = nil
             current_sending_brodcast_index = next(host_brodcasts, current_sending_brodcast_index)
             if not current_sending_brodcast_index then 
-                -- end of list. rerun to get top of list. 
+                -- end of list of brodcasts. run again to get the top of the brodcasts list. 
                 current_sending_brodcast_index = next(host_brodcasts, nil) 
             end
             -- print("Switching to next brodcast.")
@@ -587,7 +598,7 @@ if host:isHost() then
 
         host_brodcasts[current_sending_brodcast_index].last_packet_index = packet_index
 
-        return current_sending_brodcast_index, packet_index, #host_brodcasts[current_sending_brodcast_index].data_packets, host_brodcasts[current_sending_brodcast_index].durration, packet
+        return packet, host_brodcasts[current_sending_brodcast_index].data_packets_tables[packet_index]
     end
 
     local function send_data_to_clients_loop()
@@ -595,20 +606,24 @@ if host:isHost() then
         if client:getSystemTime() > last_packet_sent + max_packet_rate then
             last_packet_sent = client:getSystemTime()
 
-            local brodcast_index, packet_index, packet_total, brodcast_durration, packet_data = get_next_packet_to_send()
-            ping_brodcast_data_to_client(brodcast_index, packet_index, packet_total, brodcast_durration, packet_data)
+            local packet_byte_string, packet_byte_table = get_next_packet_to_send()
+            -- printTable(packet_byte_string)
 
+            pings.ping_brodcast_data_to_client(packet_byte_string)
+
+            -- byte_str → table test. effects actionbar
+            -- packet_byte_table = table.pack(string.byte(packet_byte_string, 1, -1))
 
             if pos_is_a_radio(player:getTargetedBlock():getPos()) then 
-                host:actionbar("Brodcast #"..brodcast_index.." - Sending packet "..packet_index.." of "..packet_total)
+                host:actionbar("Brodcast #"..packet_byte_table[1].." - Sending packet "..packet_byte_table[2].." of "..packet_byte_table[3])
             end
         end
     end
 
-    local last_processed_host_brodcast_key = nil
+    local last_processed_host_brodcast_index = nil
     local function process_next_host_brodcast()
-        local current_host_brodcast_key, current_host_brodcast = next(host_brodcasts, last_processed_host_brodcast_key)
-        last_processed_host_brodcast_key = current_host_brodcast_key
+        local current_host_brodcast_key, current_host_brodcast = next(host_brodcasts, last_processed_host_brodcast_index)
+        last_processed_host_brodcast_index = current_host_brodcast_key
 
         if not current_host_brodcast_key then
             events.WORLD_RENDER:remove("one-at-a-time_host_brodcast_processor_loop")
@@ -618,11 +633,33 @@ if host:isHost() then
 
         local brodcast_file_read_stream = file:openReadStream(current_host_brodcast.file_path)
         local available = brodcast_file_read_stream:available()
+        local total_packets = math.floor((available - (available %max_packet_size ))/max_packet_size)
+        local packet_builder = {}
+        table.insert(packet_builder, tonumber(current_host_brodcast_key))
+        table.insert(packet_builder, tonumber(1))
+        table.insert(packet_builder, tonumber(total_packets))
+        table.insert(packet_builder, tonumber(current_host_brodcast.durration))
+        
+        local last_packet_index = 1
         for i = 1, available do
             -- table.insert(current_host_brodcast.data, data)
-            packet_index = math.floor((i - (i %max_packet_size ))/max_packet_size)+1
-            if not current_host_brodcast.data_packets[packet_index] then current_host_brodcast.data_packets[packet_index] = {} end
-            table.insert(current_host_brodcast.data_packets[packet_index], brodcast_file_read_stream:read())
+            local packet_index = math.floor((i - (i %max_packet_size ))/max_packet_size)+1
+            if packet_index > last_packet_index then 
+                -- print("time to make a new packet")
+
+                table.insert(current_host_brodcast.data_packets_tables, packet_builder)
+                table.insert(current_host_brodcast.data_packets, string.char(table.unpack(packet_builder)))
+                
+                last_packet_index = packet_index
+
+                packet_builder = {}
+                table.insert(packet_builder, tonumber(current_host_brodcast_key))
+                table.insert(packet_builder, tonumber(packet_index))
+                table.insert(packet_builder, tonumber(total_packets))
+                table.insert(packet_builder, tonumber(current_host_brodcast.durration))
+            end
+            -- print("byte")
+            table.insert(packet_builder, brodcast_file_read_stream:read())
         end
         brodcast_file_read_stream:close()
     end
