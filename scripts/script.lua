@@ -255,6 +255,7 @@ local function pos_is_known_radio(pos)
 end
 
 local function add_radio(pos)
+    if not radio_is_in_range(pos) then return end
     all_radios[tostring(pos)] = {
         pos = pos,
         squish_scale = 1,
@@ -279,6 +280,8 @@ end
 local function unknow_radio(pos)
     all_radios[tostring(pos)] = nil
     radio_count = radio_count -1
+    if radio_count == 0 then nearest_radio_key = nil end
+    if get_playing_brodcast(pos) then kill_brodcast(pos) end
 end
 
 
@@ -349,23 +352,23 @@ local function reset_skull()
     radio_model["Knob C"]:setRot(0,0,0)
     radio_model["Knob Side"]:setRot(0,0,0)
     radio_model["Speaker"]:setScale(1, 1, 1 )
+    radio_model["Antenna"]:setVisible(true)     -- Set to false on unknown block radios. 
 end
 
 local function skull_renderer_loop(_, block)
     reset_skull()
     if not block then return end
 
-    -- test if new radio
-    if not pos_is_known_radio(block:getPos()) and radio_is_in_range(block:getPos()) then 
-        -- print("Found radio at "..tostring(block:getPos()))
-        -- print(block)
-        add_radio(block:getPos())
+    if not pos_is_known_radio(block:getPos()) then
+        radio_model["Antenna"]:setVisible(false)
+        return
     end
 
     local current_radio = all_radios[tostring(block:getPos())]
     if not current_radio then 
-        -- looks like the radio isn't allways created in time (??). 
-        -- It should clear up eventualy, but lets skip for now
+        -- there was a rare bug that a radio would be added, but had not been really added. (?)
+        -- I probably fixed it anyways, but this is here to catch that issue. 
+        -- Radio has not been added yet. ignore it. 
         return 
     end
 
@@ -441,23 +444,25 @@ end
 
 
 -- world tick loop
-local world_remove_radio_loop_next_key = nil
+local world_radio_checkup_loop_last_key = nil
 local function world_radio_checkup_loop()
     -- this function checks 1 radio per run. so with many radios, it may be slow to detect changes. 
     -- but at many radios, will only use a few instructions. 
-    local current_key = world_remove_radio_loop_next_key
-    world_remove_radio_loop_next_key = next(all_radios, current_key)
-    
-    -- when looping back to the top of the list, this will be nil. 
-    -- this will be resolved by `next()` on next run, so just return early. 
-    -- but this may be because the list is empty. if it is, make sure to reset sound positions. 
+    if radio_count == 0 then return end
+
+    local current_key = next(all_radios, world_radio_checkup_loop_last_key)
+    world_radio_checkup_loop_last_key = current_key
+
+    if not current_key and radio_count > 0 then
+        current_key = next(all_radios, world_radio_checkup_loop_last_key)
+        world_radio_checkup_loop_last_key = current_key
+    end
+
     if not current_key then 
-        if radio_count == 0 then
-            nearest_radio_key = nil
-        end
-        
+        -- shouldn't ever reach this point. But just in case:
         return 
     end
+
     local current_radio = all_radios[current_key]
     
     -- remove distant radios and radios that have been broken
@@ -514,10 +519,6 @@ local function world_tick_loop()
                 nearest_brodcast:get_progress_factor()  -- inverted, because it's ok if the noise slides arround a bit more. It's animated on every tick anywhays.
             )
         end
-    -- else
-    --     print("here")
-    --     -- static_hiss:setVolume(0)
-    -- end
 
     static_hiss:setVolume(
         math.lerp(
@@ -549,16 +550,37 @@ local function world_tick_loop()
         static_hiss:setPos(0,-255,0)
     end
 
-
-
-
     -- get players interacting with radios
     for _, loopPlayer in pairs(world.getPlayers()) do
         if (loopPlayer:getSwingTime() == 1) then -- this player punched this tick
             local punchedBlock, _, _ = loopPlayer:getTargetedBlock(true, block_reach)
-            if pos_is_known_radio(punchedBlock:getPos()) then
-                -- print("That's a radio")
-                radio_react_to_punch(punchedBlock:getPos())
+            local punched_block_pos = punchedBlock:getPos()
+
+            if      not pos_is_known_radio(punched_block_pos)
+                and pos_is_a_radio(punched_block_pos)
+                and radio_is_in_range(punched_block_pos)
+                and not loopPlayer:isCrouching()
+            then
+                -- new radio, and it's in range!
+                add_radio(punched_block_pos)
+                sounds["block.lever.click"]
+                    :setPos(punched_block_pos + radio_sound_pos_offset)
+                    :setSubtitle("Radio turns on")
+                    :setPitch(0.6)
+                    :play()
+            end
+
+            if pos_is_known_radio(punched_block_pos) then
+                if loopPlayer:isCrouching() then
+                    unknow_radio(punched_block_pos)
+                    sounds["block.lever.click"]
+                        :setPos(punched_block_pos + radio_sound_pos_offset)
+                        :setSubtitle("Radio turns off")
+                        :setPitch(0.5)
+                        :play()
+                else
+                    radio_react_to_punch(punched_block_pos)
+                end
             end
         end
     end
