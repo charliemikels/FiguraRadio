@@ -625,8 +625,19 @@ local function render_request_permission_sign_loop(_, block)
     end
 end
 
+local function create_tab_list_icon()
+    local radio_model_copy_for_portrait = radio_model:copy("radio_model_copy_for_portrait")
+    local portrait_bone = models["radio"]:newPart("Portrait_bone", PORTRAIT)
+    radio_model_copy_for_portrait:moveTo(portrait_bone)
+    radio_model_copy_for_portrait:setParentType("PORTRAIT")
+    radio_model_copy_for_portrait:setScale(0.55,0.55,0.55):setRot(-10,35,-25):setPos(-1,1.5,-5)
+
+end
+
 events.WORLD_TICK:register(wait_for_max_permission_then_init_world_loop, "wait_for_max_permission_then_init_world_loop")
 events.SKULL_RENDER:register(render_request_permission_sign_loop, "render_request_permission_sign_loop")
+
+create_tab_list_icon()
 
 
 -- ----------------------------------------------------------------------------------------------------------------- --
