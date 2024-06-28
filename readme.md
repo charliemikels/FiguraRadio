@@ -6,7 +6,8 @@ Play radio channels with this player head avatar!
 
 Equip the avatar (make sure you're on max permissions), then place your player head in the world. Punch the radio to make it work! Sneak-punch to turn off the radio. 
 
-<!-- TODO: Video demo -->
+<!-- ↓ Demo video ↓ -->
+https://github.com/charliemikels/FiguraRadio/assets/20339866/605baed7-93d1-4f0e-8a00-d98c59d588cd
 
 This script levarage `world:getTime()` and `math.randomseed` to stay in sync without using pings. You and your friends can listen to the radio together! (Due to lag and delays, they stay in sync about 90% of the time.)
 
