@@ -12,9 +12,9 @@ local use_fast_packets_when_pings_disabled = true
 local host_brodcast_files_root = "Additional_Radio_Brodcasts/"
 
 -- sound configuration
-local static_hiss_volume = 0.1
+local static_hiss_volume = 0.15
 local static_hiss_volume_during_brodcats = 0.05
-local static_hiss_punch_volume = 0.15
+local static_hiss_punch_volume = 0.2
 
 local brodcast_target_volume = 1
 
