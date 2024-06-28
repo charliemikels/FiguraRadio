@@ -307,8 +307,8 @@ local function radio_react_to_punch(pos)
 
     if pcall(client.getViewer) and client:getViewer() then 
         if  nearest_radio_key and all_radios[nearest_radio_key]
-            and (  distancesquared(client:getViewer():getPos(), all_radios[nearest_radio_key].pos)
-                > distancesquared(client:getViewer():getPos(), current_radio.pos) )
+            and (  distancesquared(client:getViewer():getPos(), all_radios[nearest_radio_key].pos + radio_sound_pos_offset)
+                > distancesquared(client:getViewer():getPos(), current_radio.pos + radio_sound_pos_offset) )
         then
             nearest_radio_key = tostring(current_radio.pos)
         end
@@ -475,8 +475,8 @@ local function world_radio_checkup_loop()
     -- test nearest radio, if viewer is arround. 
     if pcall(client.getViewer) then 
         if  not nearest_radio_key or not all_radios[nearest_radio_key]
-            or    distancesquared(client:getViewer():getPos(), all_radios[nearest_radio_key].pos) 
-                > distancesquared(client:getViewer():getPos(), current_radio.pos) 
+            or    distancesquared(client:getViewer():getPos(), all_radios[nearest_radio_key].pos + radio_sound_pos_offset) 
+                > distancesquared(client:getViewer():getPos(), current_radio.pos + radio_sound_pos_offset) 
         then
             nearest_radio_key = current_key
             -- print("new nearest radio")
@@ -511,15 +511,14 @@ local function world_tick_loop()
 
     -- -- hiss volume
     local target_static_his_volume = static_hiss_volume
-    -- if nearest_radio_key then
-        local nearest_brodcast = (all_radios[nearest_radio_key] and get_playing_brodcast(all_radios[nearest_radio_key].pos) or nil)
-        if nearest_brodcast then
-            target_static_his_volume = math.lerp( 
-                static_hiss_volume, 
-                static_hiss_volume_during_brodcats,
-                nearest_brodcast:get_progress_factor()  -- inverted, because it's ok if the noise slides arround a bit more. It's animated on every tick anywhays.
-            )
-        end
+    local nearest_brodcast = (all_radios[nearest_radio_key] and get_playing_brodcast(all_radios[nearest_radio_key].pos) or nil)
+    if nearest_brodcast then
+        target_static_his_volume = math.lerp( 
+            static_hiss_volume, 
+            static_hiss_volume_during_brodcats,
+            nearest_brodcast:get_progress_factor()  -- inverted, because it's ok if the noise slides arround a bit more. It's animated on every tick anywhays.
+        )
+    end
 
     static_hiss:setVolume(
         math.lerp(
@@ -531,7 +530,7 @@ local function world_tick_loop()
 
     -- -- his position
     if nearest_radio_key and radio_count > 0 then 
-        local target_pos = all_radios[nearest_radio_key].pos
+        local target_pos = all_radios[nearest_radio_key].pos + radio_sound_pos_offset
         if static_hiss:getPos().y <= -200 then
             -- static_hiss sound gets banished to (0,-255,0) this is a quick check to see it's status. 
             -- (since apparently, is_playing isn't reliable (thus says the wiki))
