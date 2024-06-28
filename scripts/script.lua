@@ -217,6 +217,8 @@ local function play_a_brodcast(pos)
 
     currently_playing_brodcasts[tostring(pos)] = new_playing_brodcast
     currently_playing_brodcasts[tostring(pos)].sound:play()
+
+    return new_playing_brodcast, selected_brodcast.sound_name
 end
 
 -- Radio blocks management
@@ -327,14 +329,25 @@ local function radio_react_to_punch(pos)
             -- play next brodcast
             punches_to_next_brodcast = 2
             -- print("Playing brodcast")
-            play_a_brodcast(pos)
+            local _, brodcast_sound_name = play_a_brodcast(pos)
 
             sound_radio_tuned_click_1:setPos(sound_pos):stop():play()
             sound_radio_tuned_click_2:setPos(sound_pos):stop():play()
-            particles:newParticle("note", current_radio.pos + vec(math.random()/2+0.25,0.5,math.random()/2+0.25), vec(0, 0.2, 0))
-                :setColor(vectors.hsvToRGB(vec(math.random(), 0.8, 1)))
-            particles:newParticle("note", current_radio.pos + vec(math.random()/2+0.25,0.75,math.random()/2+0.25), vec(0, 0.3, 0))
-                :setColor(vectors.hsvToRGB(vec(math.random(), 0.8, 1)))
+
+
+            local note_color_randomseed = 0
+            for _, num in ipairs(table.pack(string.byte(brodcast_sound_name, 1, -1))) do
+                -- randomseed can't use strings as a seed, but all we really have to go on is strings 
+                -- (indexes can change). So convert the string to bytes, then a table, then sum up the table. 
+                note_color_randomseed = note_color_randomseed + num
+            end
+
+            math.randomseed(client:getSystemTime())
+            local particle_a = particles:newParticle("note", current_radio.pos + vec(math.random()/2+0.25,0.5,math.random()/2+0.25), vec(0, 0.2, 0))
+            local particle_b = particles:newParticle("note", current_radio.pos + vec(math.random()/2+0.25,0.75,math.random()/2+0.25), vec(0, 0.3, 0))
+            math.randomseed(note_color_randomseed)
+            particle_a:setColor(vectors.hsvToRGB(vec(math.random(), 0.8, 1)))
+            particle_b:setColor(vectors.hsvToRGB(vec(math.random(), 0.8, 1)))
         else
             particles:newParticle("smoke", current_radio.pos + vec(math.random()/2+0.25,0.5,math.random()/2+0.25), vec(0, 0.1, 0))
             sound_radio_tune_attempt:setPitch(math.random()*2+2):setPos(sound_pos):stop():play()
