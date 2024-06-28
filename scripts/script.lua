@@ -283,7 +283,14 @@ end
 local function unknow_radio(pos)
     all_radios[tostring(pos)] = nil
     radio_count = radio_count -1
-    if radio_count == 0 then nearest_radio_key = nil end
+    if not all_radios[nearest_radio_key] then 
+        -- we removed the nearest radio. 
+        -- Grab a random radio and let the world checkup loop take care of it. 
+        if radio_count == 0 then nearest_radio_key = nil 
+        else 
+            nearest_radio_key = next(all_radios)
+        end
+    end
     if get_playing_broadcast(pos) then kill_broadcast(pos) end
 end
 
@@ -545,7 +552,7 @@ local function world_tick_loop()
     )
 
     -- -- his position
-    if nearest_radio_key and radio_count > 0 then 
+    if nearest_radio_key and radio_count > 0 and all_radios[nearest_radio_key] then 
         local target_pos = all_radios[nearest_radio_key].pos + radio_sound_pos_offset
         if static_hiss:getPos().y <= -200 then
             -- static_hiss sound gets banished to (0,-255,0) this is a quick check to see it's status. 
