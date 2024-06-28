@@ -1,18 +1,23 @@
 
-events.ENTITY_INIT:register(function() print("Entity init → "..client:getSystemTime()) end)
+-- debug
+-- events.ENTITY_INIT:register(function() print("Entity init → "..client:getSystemTime()) end)
 
+-- meta
 local radio_model = models["radio"]["Skull"]
 
+-- remote brodcasts
+local enable_remote_brodcasts = true
 local use_ping_file_transfer = true
+local host_brodcast_files_root = "Additional_Radio_Brodcasts/"
 
--- functional sounds
+-- sound configuration
 local static_hiss_volume = 0.1
 local static_hiss_volume_during_brodcats = 0.05
 local static_hiss_punch_volume = 0.15
 
-local static_hiss = sounds["Pink-Loop"]:setPitch(1.25):setVolume(0):loop(true):setPos(0,-255,0)
-
 local brodcast_target_volume = 1
+
+local static_hiss = sounds["Pink-Loop"]:setPitch(1.25):setVolume(0):loop(true):setPos(0,-255,0)
 
 local sound_radio_tuned_click_1 = sounds["block.note_block.hat"]:setPitch(1):setSubtitle("Radio Tuned")
 local sound_radio_tuned_click_2 = sounds["block.note_block.cow_bell"]:setPitch(2.5):setVolume(0.25):setSubtitle("Radio Tuned")
@@ -34,13 +39,13 @@ local currently_playing_brodcasts = {}
 
 local received_brodcast_from_host = false
 
+-- brodcasts initilization and management
 local function sort_brodcasts_table()
     table.sort(brodcasts, function(a,b) 
         if a.is_local ~= b.is_local then return a.is_local end
         return a.sound_name < b.sound_name 
     end)
 end
-
 
 local function load_internal_brodcasts()
     for _, sound_name in pairs(sounds:getCustomSounds()) do
@@ -66,6 +71,7 @@ local function load_internal_brodcasts()
     sort_brodcasts_table()
 end
 load_internal_brodcasts()
+
 
 -- -- syncronization
 local function get_current_brodcast_seed_pre_floor()
@@ -679,11 +685,11 @@ local function ping_brodcast_data_to_client(byte_string_packet)
 
         incomming_brodcasts[brodcast_id].packets = nil
 
-        if not received_brodcast_from_host and nearest_radio_key then 
-            if not host:isHost() then print("Received a remote brodcast") end
-            -- TODO: make radio react to successfuly host → client brodcasts
-            -- ie a light goes from red to green or something. 
-        end
+        -- if not received_brodcast_from_host and nearest_radio_key then 
+        --     if not host:isHost() then print("Received a remote brodcast") end
+        --     -- TODO: make radio react to successfuly host → client brodcasts
+        --     -- ie a light goes from red to green or something. 
+        -- end
         received_brodcast_from_host = true
     end
 end
@@ -694,8 +700,7 @@ end
 
 
 -- Host only
-local host_brodcast_files_root = "Additional_Radio_Brodcasts/"
-if host:isHost() then 
+if host:isHost() and enable_remote_brodcasts then 
 
     if avatar:getPermissionLevel() ~= "MAX" then 
         print("Set yourself to max permissions and reload your avatar plz. :)")
