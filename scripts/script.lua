@@ -463,6 +463,12 @@ local function world_radio_checkup_loop()
     -- this function checks 1 radio per run. so with many radios, it may be slow to detect changes. 
     -- but at many radios, will only use a few instructions. 
     if radio_count == 0 then return end
+    if not all_radios[world_radio_checkup_loop_last_key] then
+        -- rare bug where we'll still have a world_radio_checkup_loop_last_key, 
+        -- but that won't be a valid key anymore. (thus, `next()` will fail)
+        -- reset to nil. we'll start the loop over, but better than crashing. 
+        world_radio_checkup_loop_last_key = nil
+    end
 
     local current_key = next(all_radios, world_radio_checkup_loop_last_key)
     world_radio_checkup_loop_last_key = current_key
