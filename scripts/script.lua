@@ -289,20 +289,18 @@ end
 
 
 -- interaction management
-local punches_to_next_brodcast = 2
 local last_tunning_position = 0
 local function radio_react_to_punch(pos)
     local current_radio = all_radios[tostring(pos)]
     
     if not get_playing_brodcast(pos) then
+        math.random(get_current_brodcast_seed_pre_floor())
         current_radio.squish_scale = 0.2
         current_radio.target_knob_rotation_a = math.random(0, 3)*90
         current_radio.target_knob_rotation_b = math.random(0, 3)*90
         current_radio.target_knob_rotation_c = math.random(0, 3)*90
         current_radio.target_knob_rotation_side = math.random(0, 3)*90
-        math.random(get_current_brodcast_seed())
-        last_tunning_position = math.random()*-4.75
-        math.random(get_current_brodcast_seed_pre_floor())
+        current_radio.target_tune_x_position = math.random()*-4.75
     else
         current_radio.squish_scale = 0.8
     end
@@ -323,35 +321,34 @@ local function radio_react_to_punch(pos)
     local sound_pos = pos+radio_sound_pos_offset
 
     if can_play_brodcast(pos) then
-        punches_to_next_brodcast = punches_to_next_brodcast -1
-        if punches_to_next_brodcast < 1 and syncronization_window_is_open()
+        if syncronization_window_is_open()
         then
             -- play next brodcast
-            punches_to_next_brodcast = 2
             -- print("Playing brodcast")
             local _, brodcast_sound_name = play_a_brodcast(pos)
 
             sound_radio_tuned_click_1:setPos(sound_pos):stop():play()
             sound_radio_tuned_click_2:setPos(sound_pos):stop():play()
 
-
-            local note_color_randomseed = 0
+            local seed_from_sound_name = 0
             for _, num in ipairs(table.pack(string.byte(brodcast_sound_name, 1, -1))) do
                 -- randomseed can't use strings as a seed, but all we really have to go on is strings 
                 -- (indexes can change). So convert the string to bytes, then a table, then sum up the table. 
-                note_color_randomseed = note_color_randomseed + num
+                seed_from_sound_name = seed_from_sound_name + num
             end
 
             math.randomseed(client:getSystemTime())
             local particle_a = particles:newParticle("note", current_radio.pos + vec(math.random()/2+0.25,0.5,math.random()/2+0.25), vec(0, 0.2, 0))
             local particle_b = particles:newParticle("note", current_radio.pos + vec(math.random()/2+0.25,0.75,math.random()/2+0.25), vec(0, 0.3, 0))
-            math.randomseed(note_color_randomseed)
+            
+            math.randomseed(seed_from_sound_name)
             particle_a:setColor(vectors.hsvToRGB(vec(math.random(), 0.8, 1)))
             particle_b:setColor(vectors.hsvToRGB(vec(math.random(), 0.8, 1)))
+            current_radio.target_tune_x_position = math.random()*-4.75
+            
         else
             particles:newParticle("smoke", current_radio.pos + vec(math.random()/2+0.25,0.5,math.random()/2+0.25), vec(0, 0.1, 0))
             sound_radio_tune_attempt:setPitch(math.random()*2+2):setPos(sound_pos):stop():play()
-            current_radio.target_tune_x_position = last_tunning_position
         end
     end
 end
