@@ -1,4 +1,16 @@
-"Jazz Brunch " Kevin MacLeod (incompetech.com)
+"Crunk Knight" Kevin MacLeod (incompetech.com)
+Licensed under Creative Commons: By Attribution 4.0 License
+http://creativecommons.org/licenses/by/4.0/
+
+"Flying Kerfuffle" Kevin MacLeod (incompetech.com)
+Licensed under Creative Commons: By Attribution 4.0 License
+http://creativecommons.org/licenses/by/4.0/
+
+"Jazz Brunch" Kevin MacLeod (incompetech.com)
+Licensed under Creative Commons: By Attribution 4.0 License
+http://creativecommons.org/licenses/by/4.0/
+
+"Local Forecast" Kevin MacLeod (incompetech.com)
 Licensed under Creative Commons: By Attribution 4.0 License
 http://creativecommons.org/licenses/by/4.0/
 
@@ -10,13 +22,5 @@ http://creativecommons.org/licenses/by/4.0/
 Licensed under Creative Commons: By Attribution 4.0 License
 http://creativecommons.org/licenses/by/4.0/
 
-"Local Forecast" Kevin MacLeod (incompetech.com)
-Licensed under Creative Commons: By Attribution 4.0 License
-http://creativecommons.org/licenses/by/4.0/
-
-"Flying Kerfuffle" Kevin MacLeod (incompetech.com)
-Licensed under Creative Commons: By Attribution 4.0 License
-http://creativecommons.org/licenses/by/4.0/
-
 Lorum Ipsum text from Wikipedia → https://en.wikipedia.org/wiki/Lorem_ipsum
-Moonbase alpha tts from https://tts.cyzon.us/ (https://github.com/calzoneman/aeiou)
+Spoken by espeak-ng → https://github.com/espeak-ng/espeak-ng/
