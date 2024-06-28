@@ -8,6 +8,7 @@ local radio_model = models["radio"]["Skull"]
 -- remote brodcasts
 local enable_remote_brodcasts = true
 local use_ping_file_transfer = true
+local use_fast_packets_when_pings_disabled = true
 local host_brodcast_files_root = "Additional_Radio_Brodcasts/"
 
 -- sound configuration
@@ -617,7 +618,9 @@ events.SKULL_RENDER:register(render_request_permission_sign_loop, "render_reques
 local max_packet_size = 500 -- note: if your song takes more than max_packet_size packets, 
                             -- then there will be a conversion error trying to assign a number > than 255 to the "total packets" count
 local max_packet_rate = 1500
--- local max_packet_rate = 100  -- DEV. Disable pings when using this option. 
+if not use_ping_file_transfer and use_fast_packets_when_pings_disabled then
+    max_packet_rate = 10
+end
 local last_packet_sent = client:getSystemTime()
 
 local function make_remore_brodcast_sound_name(id_number) 
