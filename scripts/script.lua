@@ -5,18 +5,18 @@
 -- meta
 local radio_model = models["radio"]["Skull"]
 
--- remote brodcasts
-local enable_remote_brodcasts = true
+-- remote broadcasts
+local enable_remote_broadcasts = true
 local use_ping_file_transfer = true
 local use_fast_packets_when_pings_disabled = true
-local host_brodcast_files_root = "Additional_Radio_Brodcasts/"
+local host_broadcast_files_root = "Additional_Radio_Broadcasts/"
 
 -- sound configuration
 local static_hiss_volume = 0.15
 local static_hiss_volume_during_brodcats = 0.05
 local static_hiss_punch_volume = 0.2
 
-local brodcast_target_volume = 1
+local broadcast_target_volume = 1
 
 local static_hiss = sounds["Pink-Loop"]:setPitch(1.25):setVolume(0):loop(true):setPos(0,-255,0)
 
@@ -34,53 +34,53 @@ local nearest_radio_key = nil
 
 local radio_sound_pos_offset = vec(0.5,0.5,0.5)
 
--- brodcasts
-local brodcasts = {}
-local currently_playing_brodcasts = {} 
+-- broadcasts
+local broadcasts = {}
+local currently_playing_broadcasts = {} 
 
-local received_brodcast_from_host = false
+local received_broadcast_from_host = false
 
--- brodcasts initilization and management
-local function sort_brodcasts_table()
-    table.sort(brodcasts, function(a,b) 
+-- broadcasts initilization and management
+local function sort_broadcasts_table()
+    table.sort(broadcasts, function(a,b) 
         if a.is_local ~= b.is_local then return a.is_local end
         return a.sound_name < b.sound_name 
     end)
 end
 
-local function load_internal_brodcasts()
+local function load_internal_broadcasts()
     for _, sound_name in pairs(sounds:getCustomSounds()) do
-        if string.match(sound_name, "Default_Brodcasts.") then
+        if string.match(sound_name, "Default_Broadcasts.") then
             
             local _, _, seconds = string.find(sound_name, "-(%d+)s$")
 
             if seconds then 
-                local new_brodcast = {
-                    -- sound = sounds[sound_name]:setSubtitle("Radio Brodcast #"..tostring(#brodcasts +1)),
+                local new_broadcast = {
+                    -- sound = sounds[sound_name]:setSubtitle("Radio Broadcast #"..tostring(#broadcasts +1)),
                     sound_name = sound_name,
                     is_local = true,
                     durration = seconds*1000
                 }
                 table.insert(
-                    brodcasts, 
-                    #brodcasts+1, --math.random(1, #brodcasts+1), 
-                    new_brodcast
+                    broadcasts, 
+                    #broadcasts+1, --math.random(1, #broadcasts+1), 
+                    new_broadcast
                 )
             end
         end
     end
-    sort_brodcasts_table()
+    sort_broadcasts_table()
 end
-load_internal_brodcasts()
+load_internal_broadcasts()
 
 
 -- -- syncronization
-local function get_current_brodcast_seed_pre_floor()
+local function get_current_broadcast_seed_pre_floor()
     return world:getTime()/20
 end
 
-local function get_current_brodcast_seed()
-    return math.floor(get_current_brodcast_seed_pre_floor())
+local function get_current_broadcast_seed()
+    return math.floor(get_current_broadcast_seed_pre_floor())
     -- gets a new,fixed seed every second
 end
 
@@ -89,13 +89,13 @@ local last_sync_seed = 0
 
 local function syncronization_window_is_open()
 
-    local current_seed = get_current_brodcast_seed()
+    local current_seed = get_current_broadcast_seed()
     if current_seed ~= last_sync_seed then
         last_sync_seed = current_seed
 
         math.randomseed(current_seed)
         attempts_before_sync_window_opens = math.random(3)
-        math.randomseed(get_current_brodcast_seed_pre_floor())
+        math.randomseed(get_current_broadcast_seed_pre_floor())
     else
         attempts_before_sync_window_opens = attempts_before_sync_window_opens -1
     end
@@ -105,87 +105,87 @@ end
 
 
 -- sound management
-local function get_playing_brodcast(pos)
-    return currently_playing_brodcasts[tostring(pos)], tostring(pos)
+local function get_playing_broadcast(pos)
+    return currently_playing_broadcasts[tostring(pos)], tostring(pos)
 end
 
-local function kill_brodcast(pos)
-    local current_brodcast, current_brodcast_index = get_playing_brodcast(pos)
-    current_brodcast.sound:setVolume(0):stop()
-    currently_playing_brodcasts[current_brodcast_index] = nil
+local function kill_broadcast(pos)
+    local current_broadcast, current_broadcast_index = get_playing_broadcast(pos)
+    current_broadcast.sound:setVolume(0):stop()
+    currently_playing_broadcasts[current_broadcast_index] = nil
     return
 end
 
-local function can_play_brodcast(pos)  -- TODO: rename to "radio is bussy(radio pos)" when we implement per-radio brodcasts
-    local current_brodcast_at_pos = get_playing_brodcast(pos)
+local function can_play_broadcast(pos)  -- TODO: rename to "radio is bussy(radio pos)" when we implement per-radio broadcasts
+    local current_broadcast_at_pos = get_playing_broadcast(pos)
 
-    if not current_brodcast_at_pos then return true end
+    if not current_broadcast_at_pos then return true end
 
-    if current_brodcast_at_pos.done_at < client:getSystemTime() then
-        -- brodcast is done, but it was still non-nil. reset, and tell puncher it's ok to play next brodcast
+    if current_broadcast_at_pos.done_at < client:getSystemTime() then
+        -- broadcast is done, but it was still non-nil. reset, and tell puncher it's ok to play next broadcast
 
-        kill_brodcast(pos)
+        kill_broadcast(pos)
         return true
     end
 
     return false
 end
 
--- local last_brodcast_index = nil
-local recent_brodcasts = {}
-local recent_brodcasts_table_last_checked = client.getSystemTime()
-local function brodcast_was_recently_played(brodcast_name)
-    if recent_brodcasts_table_last_checked + 60000 < client.getSystemTime() then recent_brodcasts = {} end
+-- local last_broadcast_index = nil
+local recent_broadcasts = {}
+local recent_broadcasts_table_last_checked = client.getSystemTime()
+local function broadcast_was_recently_played(broadcast_name)
+    if recent_broadcasts_table_last_checked + 60000 < client.getSystemTime() then recent_broadcasts = {} end
 
-    recent_brodcasts_table_last_checked = client.getSystemTime()
-    if #recent_brodcasts < 1 then return false end
-    for _, recent_brodcast_names in ipairs(recent_brodcasts) do
-        if recent_brodcast_names == brodcast_name then
+    recent_broadcasts_table_last_checked = client.getSystemTime()
+    if #recent_broadcasts < 1 then return false end
+    for _, recent_broadcast_names in ipairs(recent_broadcasts) do
+        if recent_broadcast_names == broadcast_name then
             return true
         end
     end
     return false
 end
 
-local function get_next_brodcast() 
-    math.randomseed(get_current_brodcast_seed())
+local function get_next_broadcast() 
+    math.randomseed(get_current_broadcast_seed())
     
-    -- local next_brodcast_index = nil
-    local next_brodcast = nil
+    -- local next_broadcast_index = nil
+    local next_broadcast = nil
     repeat
-        -- next_brodcast_index = math.random(#brodcasts)
-        next_brodcast = brodcasts[math.random(#brodcasts)]
-    until (not brodcast_was_recently_played(next_brodcast.sound_name) and not next_brodcast.is_incomming)
+        -- next_broadcast_index = math.random(#broadcasts)
+        next_broadcast = broadcasts[math.random(#broadcasts)]
+    until (not broadcast_was_recently_played(next_broadcast.sound_name) and not next_broadcast.is_incomming)
     
 
-    table.insert(recent_brodcasts, next_brodcast.sound_name)
-    if #recent_brodcasts > 2 then 
-        table.remove(recent_brodcasts, 1) 
+    table.insert(recent_broadcasts, next_broadcast.sound_name)
+    if #recent_broadcasts > 2 then 
+        table.remove(recent_broadcasts, 1) 
     end
 
-    return next_brodcast.sound_name, next_brodcast
+    return next_broadcast.sound_name, next_broadcast
 end
 
-local function play_a_brodcast(pos)
-    local _, selected_brodcast = get_next_brodcast()
+local function play_a_broadcast(pos)
+    local _, selected_broadcast = get_next_broadcast()
 
-    local new_playing_brodcast = {
+    local new_playing_broadcast = {
         radio_pos = pos, 
-        brodcast = selected_brodcast,
-        sound = sounds[selected_brodcast.sound_name]
+        broadcast = selected_broadcast,
+        sound = sounds[selected_broadcast.sound_name]
             :setSubtitle("Radio Plays")
             :setVolume(0)
             :setPos(pos + radio_sound_pos_offset),
-        sound_name = selected_brodcast.sound_name,
+        sound_name = selected_broadcast.sound_name,
         started_at = client:getSystemTime(),
-        done_at = selected_brodcast.durration + client:getSystemTime(),
+        done_at = selected_broadcast.durration + client:getSystemTime(),
 
         get_progress_factor = function(__self)
-            -- gets the factor value used in letp fns to fade in and out features at the starts and end of this brodcast. 
-            local brodcast_start_time = __self.started_at
-            local brodcast_fade_up_end = brodcast_start_time + 1000
-            local brodcast_fade_down_start = brodcast_start_time + selected_brodcast.durration - 2000
-            local brodcast_done_time = __self.done_at
+            -- gets the factor value used in letp fns to fade in and out features at the starts and end of this broadcast. 
+            local broadcast_start_time = __self.started_at
+            local broadcast_fade_up_end = broadcast_start_time + 1000
+            local broadcast_fade_down_start = broadcast_start_time + selected_broadcast.durration - 2000
+            local broadcast_done_time = __self.done_at
     
             local current_time = client:getSystemTime()
     
@@ -193,17 +193,17 @@ local function play_a_brodcast(pos)
             local fade_out_fac = 1
             local both = nil
 
-            if current_time <= brodcast_start_time then
+            if current_time <= broadcast_start_time then
                 both = 0
-            elseif current_time <= brodcast_fade_up_end then 
-                fade_in_fac = (current_time-brodcast_start_time)/(brodcast_fade_up_end-brodcast_start_time)
+            elseif current_time <= broadcast_fade_up_end then 
+                fade_in_fac = (current_time-broadcast_start_time)/(broadcast_fade_up_end-broadcast_start_time)
                 both = fade_in_fac
-            elseif current_time <= brodcast_fade_down_start then
+            elseif current_time <= broadcast_fade_down_start then
                 both = 1
                 fade_in_fac = 1
-            elseif current_time <= brodcast_done_time then
+            elseif current_time <= broadcast_done_time then
                 fade_in_fac = 1
-                fade_out_fac = (current_time-brodcast_done_time)/(brodcast_fade_down_start-brodcast_done_time)
+                fade_out_fac = (current_time-broadcast_done_time)/(broadcast_fade_down_start-broadcast_done_time)
                 both = fade_out_fac
             else
                 fade_in_fac = 1
@@ -215,10 +215,10 @@ local function play_a_brodcast(pos)
         end
     }
 
-    currently_playing_brodcasts[tostring(pos)] = new_playing_brodcast
-    currently_playing_brodcasts[tostring(pos)].sound:play()
+    currently_playing_broadcasts[tostring(pos)] = new_playing_broadcast
+    currently_playing_broadcasts[tostring(pos)].sound:play()
 
-    return new_playing_brodcast, selected_brodcast.sound_name
+    return new_playing_broadcast, selected_broadcast.sound_name
 end
 
 -- Radio blocks management
@@ -284,7 +284,7 @@ local function unknow_radio(pos)
     all_radios[tostring(pos)] = nil
     radio_count = radio_count -1
     if radio_count == 0 then nearest_radio_key = nil end
-    if get_playing_brodcast(pos) then kill_brodcast(pos) end
+    if get_playing_broadcast(pos) then kill_broadcast(pos) end
 end
 
 
@@ -293,8 +293,8 @@ local last_tunning_position = 0
 local function radio_react_to_punch(pos)
     local current_radio = all_radios[tostring(pos)]
     
-    if not get_playing_brodcast(pos) then
-        math.random(get_current_brodcast_seed_pre_floor())
+    if not get_playing_broadcast(pos) then
+        math.random(get_current_broadcast_seed_pre_floor())
         current_radio.squish_scale = 0.2
         current_radio.target_knob_rotation_a = math.random(0, 3)*90
         current_radio.target_knob_rotation_b = math.random(0, 3)*90
@@ -320,18 +320,18 @@ local function radio_react_to_punch(pos)
 
     local sound_pos = pos+radio_sound_pos_offset
 
-    if can_play_brodcast(pos) then
+    if can_play_broadcast(pos) then
         if syncronization_window_is_open()
         then
-            -- play next brodcast
-            -- print("Playing brodcast")
-            local _, brodcast_sound_name = play_a_brodcast(pos)
+            -- play next broadcast
+            -- print("Playing broadcast")
+            local _, broadcast_sound_name = play_a_broadcast(pos)
 
             sound_radio_tuned_click_1:setPos(sound_pos):stop():play()
             sound_radio_tuned_click_2:setPos(sound_pos):stop():play()
 
             local seed_from_sound_name = 0
-            for _, num in ipairs(table.pack(string.byte(brodcast_sound_name, 1, -1))) do
+            for _, num in ipairs(table.pack(string.byte(broadcast_sound_name, 1, -1))) do
                 -- randomseed can't use strings as a seed, but all we really have to go on is strings 
                 -- (indexes can change). So convert the string to bytes, then a table, then sum up the table. 
                 seed_from_sound_name = seed_from_sound_name + num
@@ -425,13 +425,13 @@ local function skull_renderer_loop(_, block)
     local squash = (2+(squish*-1))
 
     -- -- Animations while playing
-    local current_radio_brodcast = get_playing_brodcast(block:getPos())
-    if current_radio_brodcast then
+    local current_radio_broadcast = get_playing_broadcast(block:getPos())
+    if current_radio_broadcast then
 
-        local pulse        = math.abs(math.sin((client:getSystemTime()+current_radio_brodcast.started_at)/400))
-        local pulse_faster = math.abs(math.sin((client:getSystemTime()+current_radio_brodcast.started_at)/200))
+        local pulse        = math.abs(math.sin((client:getSystemTime()+current_radio_broadcast.started_at)/400))
+        local pulse_faster = math.abs(math.sin((client:getSystemTime()+current_radio_broadcast.started_at)/200))
 
-        local both_factor, _, out_factor = current_radio_brodcast:get_progress_factor()
+        local both_factor, _, out_factor = current_radio_broadcast:get_progress_factor()
 
         -- -- -- Bounce
         local bounce = (math.lerp(
@@ -506,20 +506,20 @@ local function world_tick_loop()
     world_radio_checkup_loop()
 
     -- animate sounds
-    -- brodcast fade in/out
-    for _, current_brodcast in pairs(currently_playing_brodcasts) do
-        local real_pos = current_brodcast.radio_pos 
+    -- broadcast fade in/out
+    for _, current_broadcast in pairs(currently_playing_broadcasts) do
+        local real_pos = current_broadcast.radio_pos 
 
         
-        if current_brodcast.done_at < client:getSystemTime()
+        if current_broadcast.done_at < client:getSystemTime()
         then
-            kill_brodcast(real_pos)
+            kill_broadcast(real_pos)
         else
-            current_brodcast.sound:setVolume(
+            current_broadcast.sound:setVolume(
                 math.lerp(
                     0,
-                    brodcast_target_volume, 
-                    current_brodcast:get_progress_factor() -- lets sound ramp up and down
+                    broadcast_target_volume, 
+                    current_broadcast:get_progress_factor() -- lets sound ramp up and down
                 )
             )
         end
@@ -527,12 +527,12 @@ local function world_tick_loop()
 
     -- -- hiss volume
     local target_static_his_volume = static_hiss_volume
-    local nearest_brodcast = (all_radios[nearest_radio_key] and get_playing_brodcast(all_radios[nearest_radio_key].pos) or nil)
-    if nearest_brodcast then
+    local nearest_broadcast = (all_radios[nearest_radio_key] and get_playing_broadcast(all_radios[nearest_radio_key].pos) or nil)
+    if nearest_broadcast then
         target_static_his_volume = math.lerp( 
             static_hiss_volume, 
             static_hiss_volume_during_brodcats,
-            nearest_brodcast:get_progress_factor()  -- inverted, because it's ok if the noise slides arround a bit more. It's animated on every tick anywhays.
+            nearest_broadcast:get_progress_factor()  -- inverted, because it's ok if the noise slides arround a bit more. It's animated on every tick anywhays.
         )
     end
 
@@ -649,129 +649,129 @@ if not use_ping_file_transfer and use_fast_packets_when_pings_disabled then
 end
 local last_packet_sent = client:getSystemTime()
 
-local function make_remore_brodcast_sound_name(id_number) 
-    return "remote_brodcast#"..tostring(id_number)--.."-"..tostring(durration_in_s).."s"
+local function make_remore_broadcast_sound_name(id_number) 
+    return "remote_broadcast#"..tostring(id_number)--.."-"..tostring(durration_in_s).."s"
 end 
 
-local incomming_brodcasts = nil
-local function ping_brodcast_data_to_client(byte_string_packet)
+local incomming_broadcasts = nil
+local function ping_broadcast_data_to_client(byte_string_packet)
     if not byte_string_packet then return end
 
     local raw_packet_data_table = table.pack(string.byte(byte_string_packet, 1, -1))
 
-    local brodcast_id = raw_packet_data_table[1]
-    local total_num_host_brodcasts = raw_packet_data_table[2]
+    local broadcast_id = raw_packet_data_table[1]
+    local total_num_host_broadcasts = raw_packet_data_table[2]
     local packet_index = raw_packet_data_table[3]
     local total_packets_count = raw_packet_data_table[4]
     local durration_in_s = raw_packet_data_table[5]
 
-    if not incomming_brodcasts then
+    if not incomming_broadcasts then
         -- this is the first time we're heard from the host
         -- Populate the tables with dummy data to help the 
-        -- randomizers stay in sync, even if we missed a brodcast already. 
-        incomming_brodcasts = {}
-        for id = 1, total_num_host_brodcasts do
-            -- brodcast IDs are all numeric. 
-            incomming_brodcasts[id] = {}
-            incomming_brodcasts[id].done = false
-            incomming_brodcasts[id].not_heard_from = true
-            incomming_brodcasts[id].incomming_id = id
+        -- randomizers stay in sync, even if we missed a broadcast already. 
+        incomming_broadcasts = {}
+        for id = 1, total_num_host_broadcasts do
+            -- broadcast IDs are all numeric. 
+            incomming_broadcasts[id] = {}
+            incomming_broadcasts[id].done = false
+            incomming_broadcasts[id].not_heard_from = true
+            incomming_broadcasts[id].incomming_id = id
 
-            table.insert(brodcasts, #brodcasts +1, {
-                sound_name = make_remore_brodcast_sound_name(id),
+            table.insert(broadcasts, #broadcasts +1, {
+                sound_name = make_remore_broadcast_sound_name(id),
                 is_local = false,
                 is_incomming = true
             })
         end
-        sort_brodcasts_table()
+        sort_broadcasts_table()
     end
     
-    local brodcast_name_string = make_remore_brodcast_sound_name(brodcast_id)
+    local broadcast_name_string = make_remore_broadcast_sound_name(broadcast_id)
 
-    if incomming_brodcasts[brodcast_id].not_heard_from then 
-        -- first time seeing this brodcast
-        incomming_brodcasts[brodcast_id].not_heard_from = nil
+    if incomming_broadcasts[broadcast_id].not_heard_from then 
+        -- first time seeing this broadcast
+        incomming_broadcasts[broadcast_id].not_heard_from = nil
 
-        incomming_brodcasts[brodcast_id].total_packets_count = total_packets_count
-        incomming_brodcasts[brodcast_id].packet_count = 0
-        incomming_brodcasts[brodcast_id].durration_in_s = durration_in_s
-        incomming_brodcasts[brodcast_id].packet_data = {}
-        incomming_brodcasts[brodcast_id].done = false
+        incomming_broadcasts[broadcast_id].total_packets_count = total_packets_count
+        incomming_broadcasts[broadcast_id].packet_count = 0
+        incomming_broadcasts[broadcast_id].durration_in_s = durration_in_s
+        incomming_broadcasts[broadcast_id].packet_data = {}
+        incomming_broadcasts[broadcast_id].done = false
     end
 
-    if incomming_brodcasts[brodcast_id].done then return end 
+    if incomming_broadcasts[broadcast_id].done then return end 
 
     local ogg_data_part = {table.unpack(raw_packet_data_table, 6, #raw_packet_data_table)}
 
-    if not incomming_brodcasts[brodcast_id].packet_data[packet_index] then
+    if not incomming_broadcasts[broadcast_id].packet_data[packet_index] then
         -- first time seeing this packet. 
-        incomming_brodcasts[brodcast_id].packet_data[packet_index] = ogg_data_part
-        incomming_brodcasts[brodcast_id].packet_count = incomming_brodcasts[brodcast_id].packet_count +1
+        incomming_broadcasts[broadcast_id].packet_data[packet_index] = ogg_data_part
+        incomming_broadcasts[broadcast_id].packet_count = incomming_broadcasts[broadcast_id].packet_count +1
     end
 
-    if incomming_brodcasts[brodcast_id].packet_count == incomming_brodcasts[brodcast_id].total_packets_count then
-        -- we have received all packets for this brodcast. 
-        incomming_brodcasts[brodcast_id].done = true
+    if incomming_broadcasts[broadcast_id].packet_count == incomming_broadcasts[broadcast_id].total_packets_count then
+        -- we have received all packets for this broadcast. 
+        incomming_broadcasts[broadcast_id].done = true
 
-        -- print("Brodcast #"..brodcast_id.." has been received")
+        -- print("Broadcast #"..broadcast_id.." has been received")
         
         local full_data = {}
-        for packet_i = 1, incomming_brodcasts[brodcast_id].total_packets_count do
-            for _, byte in ipairs(incomming_brodcasts[brodcast_id].packet_data[packet_i]) do
+        for packet_i = 1, incomming_broadcasts[broadcast_id].total_packets_count do
+            for _, byte in ipairs(incomming_broadcasts[broadcast_id].packet_data[packet_i]) do
                table.insert(full_data, byte)
             end
         end
 
-        sounds:newSound(brodcast_name_string, full_data)
+        sounds:newSound(broadcast_name_string, full_data)
 
-        -- processing is done. find and update the placeholder brodcast
-        for _, search_brodcast in ipairs(brodcasts) do
-            if search_brodcast.sound_name == brodcast_name_string then
-                search_brodcast.sound = sounds[brodcast_name_string]:setSubtitle(brodcast_name_string)
-                search_brodcast.durration = durration_in_s*1000
-                search_brodcast.is_incomming = nil
+        -- processing is done. find and update the placeholder broadcast
+        for _, search_broadcast in ipairs(broadcasts) do
+            if search_broadcast.sound_name == broadcast_name_string then
+                search_broadcast.sound = sounds[broadcast_name_string]:setSubtitle(broadcast_name_string)
+                search_broadcast.durration = durration_in_s*1000
+                search_broadcast.is_incomming = nil
                 break
             end 
         end
 
-        incomming_brodcasts[brodcast_id].packets = nil
+        incomming_broadcasts[broadcast_id].packets = nil
 
-        -- if not received_brodcast_from_host and nearest_radio_key then 
-        --     if not host:isHost() then print("Received a remote brodcast") end
-        --     -- TODO: make radio react to successfuly host → client brodcasts
+        -- if not received_broadcast_from_host and nearest_radio_key then 
+        --     if not host:isHost() then print("Received a remote broadcast") end
+        --     -- TODO: make radio react to successfuly host → client broadcasts
         --     -- ie a light goes from red to green or something. 
         -- end
-        received_brodcast_from_host = true
+        received_broadcast_from_host = true
     end
 end
 
-function pings.ping_brodcast_data_to_client(byte_string_packet)
-    ping_brodcast_data_to_client(byte_string_packet)
+function pings.ping_broadcast_data_to_client(byte_string_packet)
+    ping_broadcast_data_to_client(byte_string_packet)
 end
 
 
 -- Host only
-if host:isHost() and enable_remote_brodcasts then 
+if host:isHost() and enable_remote_broadcasts then 
 
     if avatar:getPermissionLevel() ~= "MAX" then 
         print("Set yourself to max permissions and reload your avatar plz. :)")
         return
     end
 
-    local host_brodcasts = {}
+    local host_broadcasts = {}
 
-    -- find adtional brodcasts
+    -- find adtional broadcasts
     if not file:allowed() then
         return
-    elseif not file:exists(host_brodcast_files_root) then 
-        file:mkdir(host_brodcast_files_root) 
-        print("Created folder for aditional radio brodcasts.")
+    elseif not file:exists(host_broadcast_files_root) then 
+        file:mkdir(host_broadcast_files_root) 
+        print("Created folder for aditional radio broadcasts at `[figura_root]/data/"..host_broadcast_files_root.."`")
     else
-        for _, filename in pairs(file:list(host_brodcast_files_root)) do
+        for _, filename in pairs(file:list(host_broadcast_files_root)) do
             local _, _, seconds = string.find(filename, "-(%d+)s%.ogg$")
             if seconds then 
-                table.insert(host_brodcasts, math.random(1, #host_brodcasts+1), {
-                    file_path = host_brodcast_files_root..filename,
+                table.insert(host_broadcasts, math.random(1, #host_broadcasts+1), {
+                    file_path = host_broadcast_files_root..filename,
                     durration = seconds,
                     -- data = {},
                     data_packets = {},
@@ -779,13 +779,13 @@ if host:isHost() and enable_remote_brodcasts then
                 })
             end 
         end
-        table.sort(host_brodcasts, function(a,b) 
+        table.sort(host_broadcasts, function(a,b) 
             return a.file_path < b.file_path
         end)
     end
 
-    if #host_brodcasts == 0 then 
-        -- no brodcasts? don't bother continuing. 
+    if #host_broadcasts == 0 then 
+        -- no broadcasts? don't bother continuing. 
         -- This skips setting up the host tick events. 
         return 
     end
@@ -793,30 +793,30 @@ if host:isHost() and enable_remote_brodcasts then
     -- file transfer
     -- "The backend hates this one simple trick!"
 
-    local current_sending_brodcast_index = next(host_brodcasts)
+    local current_sending_broadcast_index = next(host_broadcasts)
     local function get_next_packet_to_send()
-        -- see if current brodcast still has packets. send the next one of those. 
-        -- if not, get the next brodcast and send it's first packet. 
-        -- if on last brodcast, shuffle list and send the new first brodcast. 
+        -- see if current broadcast still has packets. send the next one of those. 
+        -- if not, get the next broadcast and send it's first packet. 
+        -- if on last broadcast, shuffle list and send the new first broadcast. 
 
-        -- only ask if there are brodcasts to send. 
-        local packet_index, packet = next(host_brodcasts[current_sending_brodcast_index].data_packets, host_brodcasts[current_sending_brodcast_index].last_packet_index)
+        -- only ask if there are broadcasts to send. 
+        local packet_index, packet = next(host_broadcasts[current_sending_broadcast_index].data_packets, host_broadcasts[current_sending_broadcast_index].last_packet_index)
 
         if not packet_index then 
-            -- we passed last packet. Reset and move to next brodcast. 
-            host_brodcasts[current_sending_brodcast_index].last_packet_index = nil
-            current_sending_brodcast_index = next(host_brodcasts, current_sending_brodcast_index)
-            if not current_sending_brodcast_index then 
-                -- end of list of brodcasts. run again to get the top of the brodcasts list. 
-                current_sending_brodcast_index = next(host_brodcasts, nil) 
+            -- we passed last packet. Reset and move to next broadcast. 
+            host_broadcasts[current_sending_broadcast_index].last_packet_index = nil
+            current_sending_broadcast_index = next(host_broadcasts, current_sending_broadcast_index)
+            if not current_sending_broadcast_index then 
+                -- end of list of broadcasts. run again to get the top of the broadcasts list. 
+                current_sending_broadcast_index = next(host_broadcasts, nil) 
             end
-            -- print("Switching to next brodcast.")
+            -- print("Switching to next broadcast.")
             return get_next_packet_to_send()
         end
 
-        host_brodcasts[current_sending_brodcast_index].last_packet_index = packet_index
+        host_broadcasts[current_sending_broadcast_index].last_packet_index = packet_index
 
-        return packet, host_brodcasts[current_sending_brodcast_index].data_packets_tables[packet_index]
+        return packet, host_broadcasts[current_sending_broadcast_index].data_packets_tables[packet_index]
     end
 
     local function send_data_to_clients_loop()
@@ -828,68 +828,68 @@ if host:isHost() and enable_remote_brodcasts then
             -- printTable(packet_byte_string)
 
             if use_ping_file_transfer then 
-                pings.ping_brodcast_data_to_client(packet_byte_string)
+                pings.ping_broadcast_data_to_client(packet_byte_string)
             else
-                ping_brodcast_data_to_client(packet_byte_string)
+                ping_broadcast_data_to_client(packet_byte_string)
             end
 
             -- byte_str → table test. effects actionbar
             -- packet_byte_table = table.pack(string.byte(packet_byte_string, 1, -1))
 
             if pos_is_a_radio(player:getTargetedBlock(true, block_reach):getPos()) then 
-                host:actionbar("Brodcast #"..packet_byte_table[1].." of "..packet_byte_table[2].." - Sending packet "..packet_byte_table[3].." of "..packet_byte_table[4])
+                host:actionbar("Broadcast #"..packet_byte_table[1].." of "..packet_byte_table[2].." - Sending packet "..packet_byte_table[3].." of "..packet_byte_table[4])
             end
         end
     end
 
-    local last_processed_host_brodcast_index = nil
-    local function process_next_host_brodcast()
-        local current_host_brodcast_key, current_host_brodcast = next(host_brodcasts, last_processed_host_brodcast_index)
-        last_processed_host_brodcast_index = current_host_brodcast_key
+    local last_processed_host_broadcast_index = nil
+    local function process_next_host_broadcast()
+        local current_host_broadcast_key, current_host_broadcast = next(host_broadcasts, last_processed_host_broadcast_index)
+        last_processed_host_broadcast_index = current_host_broadcast_key
 
-        if not current_host_brodcast_key then
-            events.WORLD_RENDER:remove("one-at-a-time_host_brodcast_processor_loop")
+        if not current_host_broadcast_key then
+            events.WORLD_RENDER:remove("one-at-a-time_host_broadcast_processor_loop")
             events.TICK:register(send_data_to_clients_loop)
             return
         end
 
-        local brodcast_file_read_stream = file:openReadStream(current_host_brodcast.file_path)
-        local available = brodcast_file_read_stream:available()
+        local broadcast_file_read_stream = file:openReadStream(current_host_broadcast.file_path)
+        local available = broadcast_file_read_stream:available()
         local total_packets = math.floor((available - (available %max_packet_size ))/max_packet_size)
         local packet_builder = {}
-        table.insert(packet_builder, tonumber(current_host_brodcast_key))
-        table.insert(packet_builder, tonumber(#host_brodcasts))
+        table.insert(packet_builder, tonumber(current_host_broadcast_key))
+        table.insert(packet_builder, tonumber(#host_broadcasts))
         table.insert(packet_builder, tonumber(1))
         table.insert(packet_builder, tonumber(total_packets))
-        table.insert(packet_builder, tonumber(current_host_brodcast.durration))
+        table.insert(packet_builder, tonumber(current_host_broadcast.durration))
         
         local last_packet_index = 1
         for i = 1, available do
-            -- table.insert(current_host_brodcast.data, data)
+            -- table.insert(current_host_broadcast.data, data)
             local packet_index = math.floor((i - (i %max_packet_size ))/max_packet_size)+1
             if packet_index > last_packet_index then 
                 -- print("time to make a new packet")
 
-                table.insert(current_host_brodcast.data_packets_tables, packet_builder)
-                table.insert(current_host_brodcast.data_packets, string.char(table.unpack(packet_builder)))
+                table.insert(current_host_broadcast.data_packets_tables, packet_builder)
+                table.insert(current_host_broadcast.data_packets, string.char(table.unpack(packet_builder)))
                 
                 last_packet_index = packet_index
 
                 packet_builder = {}
-                table.insert(packet_builder, tonumber(current_host_brodcast_key))
-                table.insert(packet_builder, tonumber(#host_brodcasts))
+                table.insert(packet_builder, tonumber(current_host_broadcast_key))
+                table.insert(packet_builder, tonumber(#host_broadcasts))
                 table.insert(packet_builder, tonumber(packet_index))
                 table.insert(packet_builder, tonumber(total_packets))
-                table.insert(packet_builder, tonumber(current_host_brodcast.durration))
+                table.insert(packet_builder, tonumber(current_host_broadcast.durration))
             end
             -- print("byte")
-            table.insert(packet_builder, brodcast_file_read_stream:read())
+            table.insert(packet_builder, broadcast_file_read_stream:read())
         end
-        brodcast_file_read_stream:close()
+        broadcast_file_read_stream:close()
     end
 
     -- Tick allways goes in order, even if they take longer than 1/20 of a second, which can bring the game to a halt. 
     -- world_render firers whenever it happens to be ready. 
     -- usefull to prevent total freezes while processing many large files. 
-    events.WORLD_RENDER:register(process_next_host_brodcast, "one-at-a-time_host_brodcast_processor_loop")
+    events.WORLD_RENDER:register(process_next_host_broadcast, "one-at-a-time_host_broadcast_processor_loop")
 end
