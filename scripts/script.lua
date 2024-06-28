@@ -551,22 +551,34 @@ local function world_tick_loop()
         )
     )
 
-    -- -- his position
-    if nearest_radio_key and radio_count > 0 and all_radios[nearest_radio_key] then 
-        local target_pos = all_radios[nearest_radio_key].pos + radio_sound_pos_offset
-        if static_hiss:getPos().y <= -200 then
-            -- static_hiss sound gets banished to (0,-255,0) this is a quick check to see it's status. 
-            -- (since apparently, is_playing isn't reliable (thus says the wiki))
-            -- immediatly reset pos and volume
-            static_hiss:setPos(target_pos):volume(0)
-        else
-            static_hiss:setPos(
-                math.lerp(
-                    static_hiss:getPos(),
-                    target_pos,
-                    0.2
+    -- -- hiss position
+    if nearest_radio_key and radio_count > 0 then 
+        -- TODO: There's a situational case where nearest_radio_key will point to an old 
+        -- radio location that no longer has a radio there. Which means it passed through 
+        -- `unknow_radio()`, which should have fixed the key for us, Print statements 
+        -- says it is getting set correctly in unknow_radio, but it's still the old 
+        -- key right here. Loke it's having a race condition with itself. 
+        
+        -- I'm probably overlooking something. But for now, don't mess with the hiss 
+        -- position if all_radios[nearest_radio_key] doesn't actualy exist. 
+
+        -- The cleanup loop will get arround to fixing this anyways. 
+        if all_radios[nearest_radio_key] then
+            local target_pos = all_radios[nearest_radio_key].pos + radio_sound_pos_offset
+            if static_hiss:getPos().y <= -200 then
+                -- static_hiss sound gets banished to (0,-255,0) this is a quick check to see it's status. 
+                -- (since apparently, is_playing isn't reliable (thus says the wiki))
+                -- immediatly reset pos and volume
+                static_hiss:setPos(target_pos):volume(0)
+            else
+                static_hiss:setPos(
+                    math.lerp(
+                        static_hiss:getPos(),
+                        target_pos,
+                        0.2
+                    )
                 )
-            )
+            end
         end
     else
         -- no nearby radio
