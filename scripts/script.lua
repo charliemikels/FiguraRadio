@@ -76,7 +76,7 @@ load_internal_broadcasts()
 
 -- -- syncronization
 local function get_current_broadcast_seed_pre_floor()
-    return world:getTime()/20
+    return world.getTime()/20
 end
 
 local function get_current_broadcast_seed()
