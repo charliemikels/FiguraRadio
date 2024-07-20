@@ -445,20 +445,13 @@ local function skull_renderer_loop(_, block)
     -- -- Animations while playing
     local current_radio_broadcast = get_playing_broadcast(block:getPos())
     if current_radio_broadcast then
-        local pulse                      = math.abs(math.sin((client:getSystemTime() + current_radio_broadcast.started_at) /
-            400))
-        local pulse_faster               = math.abs(math.sin((client:getSystemTime() + current_radio_broadcast.started_at) /
-            200))
+        local pulse        = math.abs(math.sin((client:getSystemTime() + current_radio_broadcast.started_at) / 400))
+        local pulse_faster = math.abs(math.sin((client:getSystemTime() + current_radio_broadcast.started_at) / 200))
 
         local both_factor, _, out_factor = current_radio_broadcast:get_progress_factor()
 
         -- -- -- Bounce
-        local bounce                     = (math.lerp(
-            1,
-            (pulse) / 16 + 1.0125,
-            out_factor
-        )
-        )
+        local bounce = math.lerp( 1, (pulse) / 16 + 1.0125, out_factor )
         radio_model:setScale(squash, bounce * squish, squash)
 
         -- -- -- Speaker
