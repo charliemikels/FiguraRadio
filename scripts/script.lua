@@ -278,6 +278,12 @@ local function add_radio(pos)
     radio_count = radio_count + 1
     if nearest_radio_key == nil then
         nearest_radio_key = tostring(pos)
+        static_hiss:setPos(pos+radio_sound_pos_offset)  -- Figura 0.1.5 RC 1: Static never starts even though it looks like it should be playing.
+                                                        -- But for some reason setting the position immediatly when the first radio is
+                                                        -- found (and before calling :play()) causes it to correctly play.
+                                                        -- Perhaps this is a reportable bug in Figura 0.1.5.
+                                                        -- TODO: Test starting sounds in odd locations at 0 volume, play the sound, then on next tick,
+                                                        --       set it's position back to within hearing distance.
         static_hiss:play()
     end
 end
