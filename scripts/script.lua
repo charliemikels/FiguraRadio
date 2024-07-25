@@ -1,5 +1,5 @@
 -- debug
-events.ENTITY_INIT:register(function() print("Entity init → " .. client:getSystemTime()) end)
+-- events.ENTITY_INIT:register(function() print("Entity init → " .. client:getSystemTime()) end)
 
 -- meta
 local radio_model                          = models["radio"]["Skull"]
