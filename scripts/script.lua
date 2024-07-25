@@ -812,7 +812,7 @@ if host:isHost() and enable_remote_broadcasts then
         -- Max broadcast count is 255. This avoids errors related to `string.char()` later.
         print("Too many host broadcast files!")
         print("Maximum number of broadcasts is 255, but found " .. tostring(#host_broadcasts))
-        print("Please remove some brodcasts from `[figura_root]/data/" ..
+        print("Please remove some broadcasts from `[figura_root]/data/" ..
             host_broadcast_files_root .. "` and then reload this avatar.")
         return
     end
@@ -891,16 +891,16 @@ if host:isHost() and enable_remote_broadcasts then
 
         -- bounds checking. Should prevent errors in string.char()
         if tonumber(current_host_broadcast_key) < 0 or tonumber(current_host_broadcast_key) > 255 then
-            print("Skipping brodcast with out of range key: `" .. tostring(current_host_broadcast_key) .. "`")
+            print("Skipping broadcast with out of range key: `" .. tostring(current_host_broadcast_key) .. "`")
             return
         elseif tonumber(total_packets) < 0 or tonumber(total_packets) > 255 then
-            print("Brodcast `" ..
+            print("Broadcast `" ..
                 current_host_broadcast.file_path ..
                 "`. is too large. (The maximim packet count is 255, but this file needs " ..
                 tostring(total_packets) .. " packets.)")
             return
         elseif tonumber(current_host_broadcast.durration) < 0 or tonumber(current_host_broadcast.durration) > 255 then
-            print("Brodcast `" ..
+            print("Broadcast `" ..
                 current_host_broadcast.file_path ..
                 "`. is too long. (The maximim durration is 255 seconds, but this file needs " ..
                 tostring(current_host_broadcast.durration) .. " secconds.)")
