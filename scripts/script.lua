@@ -247,7 +247,7 @@ end
 local max_distance_from_radios_squared = max_distance_from_radios ^ 2
 local function radio_is_in_range(pos)
     if pcall(client.getViewer) and client:getViewer():isLoaded()
-        and distancesquared(client:getViewer():getPos(), pos) < max_distance_from_radios_squared
+        and distancesquared(client:getViewer():getPos() + vec(0,client:getViewer():getEyeHeight(),0), pos) < max_distance_from_radios_squared
     then
         return true
     end
@@ -323,8 +323,8 @@ local function radio_react_to_punch(pos)
 
     if pcall(client.getViewer) and client:getViewer() then
         if nearest_radio_key and all_radios[nearest_radio_key]
-            and (distancesquared(client:getViewer():getPos(), all_radios[nearest_radio_key].pos + radio_sound_pos_offset)
-                > distancesquared(client:getViewer():getPos(), current_radio.pos + radio_sound_pos_offset))
+            and (distancesquared(client:getViewer():getPos() + vec(0,client:getViewer():getEyeHeight(),0), all_radios[nearest_radio_key].pos + radio_sound_pos_offset)
+                > distancesquared(client:getViewer():getPos()  + vec(0,client:getViewer():getEyeHeight(),0), current_radio.pos + radio_sound_pos_offset))
         then
             nearest_radio_key = tostring(current_radio.pos)
         end
@@ -503,8 +503,8 @@ local function world_radio_checkup_loop()
     -- test nearest radio, if viewer is arround.
     if pcall(client.getViewer) then
         if not nearest_radio_key or not all_radios[nearest_radio_key]
-            or distancesquared(client:getViewer():getPos(), all_radios[nearest_radio_key].pos + radio_sound_pos_offset)
-            > distancesquared(client:getViewer():getPos(), current_radio.pos + radio_sound_pos_offset)
+            or distancesquared(client:getViewer():getPos()  + vec(0,client:getViewer():getEyeHeight(),0), all_radios[nearest_radio_key].pos + radio_sound_pos_offset)
+            > distancesquared(client:getViewer():getPos()  + vec(0,client:getViewer():getEyeHeight(),0), current_radio.pos + radio_sound_pos_offset)
         then
             nearest_radio_key = current_key
             -- print("new nearest radio")
